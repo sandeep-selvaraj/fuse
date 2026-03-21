@@ -26,6 +26,9 @@ dependencies = [
     "rich>=13.0",
     "llama-cpp-python>=0.2",
     "outlines>=0.1",
+    "numba",
+    "huggingface-hub>=0.20",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
