@@ -67,6 +67,9 @@ accent = "custom"
 toggle.icon = "lucide/moon"
 toggle.name = "Switch to light mode"
 
+[project.extra.version]
+provider = "mike"
+
 [[project.extra.social]]
 icon = "fontawesome/brands/github"
 link = "https://github.com/sandeep-selvaraj/fuse"
