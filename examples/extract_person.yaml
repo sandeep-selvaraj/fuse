@@ -1,0 +1,18 @@
+# Extract person info using a small Llama model from HuggingFace
+# Usage: fuse extract "Sarah Chen is a 34-year-old architect at Stripe" --config examples/extract_person.yaml
+
+model:
+  model_name: "bartowski/Llama-3.2-1B-Instruct-GGUF"
+  # gguf_filename: "Llama-3.2-1B-Instruct-Q4_K_M.gguf"  # optional: pick a specific quant
+  n_ctx: 2048
+  n_threads: 4
+  temperature: 0.0
+
+fields:
+  name: str
+  age: int
+  job_title: str
+  company: str
+
+prompt_format: llama
+max_tokens: 256

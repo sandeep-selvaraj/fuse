@@ -1,0 +1,17 @@
+# Extract company info using Phi-4 Mini from HuggingFace
+# Usage: fuse extract "Notion was founded in 2013 in the SaaS space" --config examples/extract_company.yaml
+
+model:
+  model_name: "bartowski/Phi-4-mini-instruct-GGUF"
+  n_ctx: 4096
+  n_threads: 4
+  temperature: 0.0
+
+fields:
+  company: str
+  founding_year: int
+  industry: str
+  description: str
+
+prompt_format: chatml
+max_tokens: 256

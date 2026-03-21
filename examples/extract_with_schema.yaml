@@ -1,0 +1,13 @@
+# Extract using a JSON schema file for full control over the output shape
+# Usage: fuse extract "John is 30 and knows Python" --config examples/extract_with_schema.yaml
+
+model:
+  model_name: "bartowski/Qwen2.5-1.5B-Instruct-GGUF"
+  n_ctx: 2048
+  n_threads: 4
+  temperature: 0.0
+
+schema_file: "examples/data/person_schema.json"
+
+prompt_format: chatml
+max_tokens: 512
