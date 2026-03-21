@@ -561,7 +561,6 @@ http = [
 
 [[package]]
 name = "fusellm"
-version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "huggingface-hub" },

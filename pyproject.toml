@@ -1,6 +1,6 @@
 [project]
 name = "fusellm"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Train small LLMs and deploy them for fast structured extraction on CPU"
 readme = "README.md"
 license = "MIT"
@@ -50,8 +50,14 @@ dev = [
 fuse = "fuse.cli.app:app"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/fuse/_version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/fuse"]
@@ -60,6 +66,7 @@ packages = ["src/fuse"]
 src = ["src"]
 target-version = "py311"
 line-length = 99
+exclude = ["src/fuse/_version.py"]
 
 [tool.ruff.lint]
 select = [
