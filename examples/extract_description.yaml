@@ -1,0 +1,13 @@
+# Let the LLM figure out the schema from a natural language description
+# Usage: fuse extract "The Series A raised $15M from Sequoia" --config examples/extract_description.yaml
+
+model:
+  model_name: "bartowski/Llama-3.2-3B-Instruct-GGUF"
+  n_ctx: 2048
+  n_threads: 4
+  temperature: 0.0
+
+description: "Extract monetary amounts, the funding round type, and investor names"
+
+prompt_format: llama
+max_tokens: 512
