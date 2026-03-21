@@ -89,7 +89,7 @@ class TestSchemaBuilderFromJsonSchema:
 class TestPromptFormatting:
     def test_llama_format(self) -> None:
         prompt = format_extraction_prompt("some text", "- name (string)", "llama")
-        assert "<|begin_of_text|>" in prompt
+        assert "<|start_header_id|>system<|end_header_id|>" in prompt
         assert "some text" in prompt
 
     def test_chatml_format(self) -> None:
