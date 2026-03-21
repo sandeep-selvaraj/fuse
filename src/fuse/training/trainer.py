@@ -121,18 +121,18 @@ class Trainer:
         self._model = get_peft_model(self._model, lora_config)
 
     def _run_training(self, dataset: Any) -> None:
-        from transformers import TrainingArguments
-        from trl import SFTTrainer
+        from trl import SFTConfig, SFTTrainer
 
         console.print("[bold green]Starting training...[/bold green]")
 
         output_dir = str(self.config.output_dir)
-        training_args = TrainingArguments(
+        training_args = SFTConfig(
             output_dir=output_dir,
             num_train_epochs=self.config.num_epochs,
             per_device_train_batch_size=self.config.batch_size,
             gradient_accumulation_steps=self.config.gradient_accumulation_steps,
             learning_rate=self.config.learning_rate,
+            max_length=self.config.max_seq_length,
             logging_steps=10,
             save_strategy="epoch",
             fp16=True,
@@ -141,10 +141,9 @@ class Trainer:
 
         trainer = SFTTrainer(
             model=self._model,
-            tokenizer=self._tokenizer,
+            processing_class=self._tokenizer,
             train_dataset=dataset,
             args=training_args,
-            max_seq_length=self.config.max_seq_length,
         )
         trainer.train()
 
