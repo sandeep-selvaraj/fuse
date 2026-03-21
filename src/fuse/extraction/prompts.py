@@ -1,4 +1,8 @@
-"""Zero-shot prompt templates for structured extraction."""
+"""Zero-shot prompt templates for structured extraction.
+
+Note: Templates must NOT include BOS tokens (e.g. <|begin_of_text|>)
+because llama.cpp adds them automatically.
+"""
 
 EXTRACTION_SYSTEM = (
     "You are a precise data extraction assistant. "
@@ -38,7 +42,7 @@ Text:
 """
 
 EXTRACTION_PROMPT_LLAMA = """\
-<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+<|start_header_id|>system<|end_header_id|>
 
 {system}<|eot_id|><|start_header_id|>user<|end_header_id|>
 
@@ -53,7 +57,7 @@ Text:
 """
 
 SCHEMA_INFERENCE_PROMPT = """\
-<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+<|start_header_id|>system<|end_header_id|>
 
 You are a schema designer. Given a description of what information to extract, \
 output a list of fields with their names and types. \
