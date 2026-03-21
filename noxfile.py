@@ -23,6 +23,27 @@ def typecheck(session: nox.Session) -> None:
 
 @nox.session(python=PYTHON_VERSIONS)
 def tests(session: nox.Session) -> None:
-    """Run pytest test suite."""
+    """Run unit tests (excludes integration tests)."""
     session.install(".[dev]")
-    session.run("pytest", "tests/", "-v", *session.posargs)
+    session.run(
+        "pytest", "tests/", "-v",
+        "--ignore=tests/integration",
+        *session.posargs,
+    )
+
+
+@nox.session
+def integration(session: nox.Session) -> None:
+    """Run integration tests (downloads models, slow).
+
+    Usage:
+        uv run nox -s integration                    # all integration tests
+        uv run nox -s integration -- -k inference     # inference only
+        uv run nox -s integration -- -k training      # training only
+    """
+    session.install(".[dev,training]")
+    session.run(
+        "pytest", "tests/integration/", "-v",
+        "--tb=short",
+        *session.posargs,
+    )
