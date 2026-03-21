@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import typer
+import yaml
 from rich.console import Console
 from rich.table import Table
 
@@ -17,7 +18,22 @@ console = Console()
 @app.command()
 def extract(
     text: Annotated[str, typer.Argument(help="Text to extract from")],
-    model: Annotated[Path, typer.Option("--model", "-m", help="Path to GGUF model")],
+    config: Annotated[
+        Path | None,
+        typer.Option(
+            "--config",
+            "-c",
+            help="Path to extraction config YAML/JSON",
+        ),
+    ] = None,
+    model: Annotated[
+        str | None,
+        typer.Option(
+            "--model",
+            "-m",
+            help="GGUF path or HuggingFace repo name",
+        ),
+    ] = None,
     schema: Annotated[
         Path | None,
         typer.Option("--schema", "-s", help="Path to JSON schema file"),
@@ -36,11 +52,69 @@ def extract(
     ] = "llama",
     max_tokens: Annotated[int, typer.Option("--max-tokens", help="Max generation tokens")] = 512,
 ) -> None:
-    """Extract structured data from text using a GGUF model."""
+    """Extract structured data from text using a GGUF model.
+
+    Use --config for config-driven extraction, or --model with --schema/--fields
+    for ad-hoc extraction. The model can be a local GGUF path or a HuggingFace
+    repo name (auto-downloads the best GGUF quant).
+    """
+    if config:
+        _extract_from_config(text, config)
+    elif model:
+        _extract_from_flags(text, model, schema, fields, prompt_format, max_tokens)
+    else:
+        console.print("[red]Provide --config or --model[/red]")
+        raise typer.Exit(code=1)
+
+
+def _extract_from_config(text: str, config_path: Path) -> None:
+    """Run extraction driven by a YAML/JSON config file."""
+    from fuse.config import ExtractConfig
     from fuse.extraction.extractor import Extractor
     from fuse.inference.llama_cpp import LlamaCppBackend
 
-    backend = LlamaCppBackend(str(model))
+    with open(config_path) as f:
+        raw = yaml.safe_load(f) if config_path.suffix in (".yaml", ".yml") else json.load(f)
+
+    cfg = ExtractConfig(**raw)
+    backend = LlamaCppBackend.from_config(cfg.model)
+    extractor = Extractor(backend, prompt_format=cfg.prompt_format)
+
+    if cfg.schema_file:
+        from fuse.extraction.schema import SchemaBuilder
+
+        with open(cfg.schema_file) as f:
+            json_schema = json.load(f)
+        model_cls = SchemaBuilder.from_json_schema(json_schema)
+        result = extractor.extract(text, model_cls, max_tokens=cfg.max_tokens)
+        _print_result(result.model_dump())
+    elif cfg.fields:
+        parsed = _parse_config_fields(cfg.fields)
+        result_dict = extractor.extract_from_fields(text, parsed, max_tokens=cfg.max_tokens)
+        _print_result(result_dict)
+    elif cfg.description:
+        result_dict = extractor.extract_from_description(
+            text, cfg.description, max_tokens=cfg.max_tokens
+        )
+        _print_result(result_dict)
+    else:
+        console.print("[red]Config must specify schema_file, fields, or description[/red]")
+        raise typer.Exit(code=1)
+
+
+def _extract_from_flags(
+    text: str,
+    model: str,
+    schema: Path | None,
+    fields: str | None,
+    prompt_format: str,
+    max_tokens: int,
+) -> None:
+    """Run extraction from CLI flags."""
+    from fuse.extraction.extractor import Extractor
+    from fuse.inference.llama_cpp import LlamaCppBackend
+
+    backend = LlamaCppBackend(model_path=model)
     extractor = Extractor(backend, prompt_format=prompt_format)
 
     if schema:
@@ -56,7 +130,7 @@ def extract(
         result_dict = extractor.extract_from_fields(text, parsed_fields, max_tokens=max_tokens)
         _print_result(result_dict)
     else:
-        console.print("[red]Provide either --schema or --fields[/red]")
+        console.print("[red]Provide --schema, --fields, or use --config[/red]")
         raise typer.Exit(code=1)
 
 
@@ -68,8 +142,6 @@ def train(
     ],
 ) -> None:
     """Fine-tune a model using Unsloth or HuggingFace."""
-    import yaml
-
     from fuse.config import TrainConfig
     from fuse.training.trainer import Trainer
 
@@ -101,7 +173,7 @@ def quantize(
 
 
 def _parse_field_spec(spec: str) -> dict[str, type | tuple[type, Any]]:
-    """Parse a CLI field spec like 'name:str,age:int,skills:list' into a dict."""
+    """Parse a CLI field spec like 'name:str,age:int' into a dict."""
     type_map: dict[str, type | tuple[type, Any]] = {
         "str": str,
         "int": int,
@@ -118,6 +190,22 @@ def _parse_field_spec(spec: str) -> dict[str, type | tuple[type, Any]]:
         else:
             fields[part] = str
     return fields
+
+
+def _parse_config_fields(
+    fields: dict[str, str],
+) -> dict[str, type | tuple[type, Any]]:
+    """Parse config field mapping (e.g. {'name': 'str'}) to Python types."""
+    type_map: dict[str, type] = {
+        "str": str,
+        "int": int,
+        "float": float,
+        "bool": bool,
+        "list": list[str],
+        "list[str]": list[str],
+        "list[int]": list[int],
+    }
+    return {name: type_map.get(t, str) for name, t in fields.items()}
 
 
 def _print_result(data: dict) -> None:

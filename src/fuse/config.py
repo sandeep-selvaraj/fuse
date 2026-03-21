@@ -16,13 +16,35 @@ class QuantMethod(StrEnum):
 
 
 class InferenceConfig(BaseModel):
-    model_path: Path
+    model_name: str | None = Field(
+        default=None,
+        description="HuggingFace GGUF repo name",
+    )
+    model_path: Path | None = Field(default=None, description="Local path to GGUF model file")
+    gguf_filename: str | None = Field(
+        default=None, description="Specific GGUF filename to download from the repo"
+    )
     n_ctx: int = Field(default=2048, description="Context window size")
     n_threads: int = Field(default=4, description="Number of CPU threads for inference")
     n_gpu_layers: int = Field(default=0, description="Layers to offload to GPU (0 = CPU only)")
     max_tokens: int = Field(default=512, description="Default max tokens for generation")
     temperature: float = Field(default=0.0, description="Sampling temperature (0 = greedy)")
     seed: int = Field(default=42, description="Random seed for reproducibility")
+
+
+class ExtractConfig(BaseModel):
+    model: InferenceConfig = Field(description="Model configuration")
+    schema_file: Path | None = Field(default=None, description="Path to JSON schema file")
+    fields: dict[str, str] | None = Field(
+        default=None, description="Field name to type mapping (e.g. {'name': 'str', 'age': 'int'})"
+    )
+    description: str | None = Field(
+        default=None, description="Natural language description of what to extract"
+    )
+    prompt_format: str = Field(
+        default="llama", description="Prompt format: llama, chatml, generic"
+    )
+    max_tokens: int = Field(default=512, description="Max tokens for generation")
 
 
 class TrainConfig(BaseModel):
