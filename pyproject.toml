@@ -86,6 +86,9 @@ known-first-party = ["fuse"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "integration: integration tests that download models and run real inference/training (slow)",
+]
 
 [tool.ty.rules]
 # Optional deps (training, yaml) are not installed in dev — suppress import errors
