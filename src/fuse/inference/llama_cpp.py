@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from fuse.config import InferenceConfig
 
@@ -109,4 +109,4 @@ class LlamaCppBackend:
                     f"Try increasing max_tokens. Raw output: {raw!r}"
                 )
                 raise ValueError(msg) from None
-        return raw
+        return cast("dict[str, Any]", raw)
