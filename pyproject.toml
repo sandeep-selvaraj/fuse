@@ -1,0 +1,82 @@
+[project]
+name = "fusellm"
+version = "0.1.0"
+description = "Train small LLMs and deploy them for fast structured extraction on CPU"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [
+    { name = "Sandeep Selvaraj" },
+]
+keywords = ["llm", "structured-extraction", "inference", "training", "gguf"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "pydantic>=2.0",
+    "typer>=0.9",
+    "rich>=13.0",
+    "llama-cpp-python>=0.2",
+    "outlines>=0.1",
+]
+
+[project.optional-dependencies]
+training = [
+    "torch>=2.0",
+    "transformers>=4.40",
+    "peft>=0.10",
+    "datasets>=2.0",
+    "trl>=0.8",
+]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.4",
+    "ty",
+    "nox",
+]
+
+[project.scripts]
+fuse = "fuse.cli.app:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fuse"]
+
+[tool.ruff]
+src = ["src"]
+target-version = "py311"
+line-length = 99
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "TCH",  # flake8-type-checking
+    "RUF",  # ruff-specific
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["fuse"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ty.rules]
+# Optional deps (training, yaml) are not installed in dev — suppress import errors
+unresolved-import = "ignore"
