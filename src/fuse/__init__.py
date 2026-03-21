@@ -7,7 +7,6 @@ from fuse.extraction.schema import SchemaBuilder
 from fuse.inference.llama_cpp import LlamaCppBackend
 
 __all__ = [
-    "__version__",
     "ExportConfig",
     "ExtractConfig",
     "Extractor",
@@ -15,4 +14,5 @@ __all__ = [
     "LlamaCppBackend",
     "SchemaBuilder",
     "TrainConfig",
+    "__version__",
 ]
