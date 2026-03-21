@@ -1,0 +1,19 @@
+# Train using a dataset from HuggingFace Hub (no local data needed)
+# Usage: fuse train --config examples/train_from_hub.yaml
+
+model_name: "unsloth/Qwen2.5-1.5B-Instruct"
+output_dir: "./output/qwen2.5-1.5b-alpaca"
+dataset_name: "tatsu-lab/alpaca"
+
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+
+num_epochs: 1
+batch_size: 4
+learning_rate: 2e-4
+max_seq_length: 2048
+gradient_accumulation_steps: 4
+
+quantize: "q4_0"
+use_unsloth: true

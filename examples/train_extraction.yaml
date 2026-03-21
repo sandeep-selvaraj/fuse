@@ -1,0 +1,22 @@
+# Train a small Llama model for structured JSON extraction
+# Usage: fuse train --config examples/train_extraction.yaml
+
+model_name: "unsloth/Llama-3.2-1B-Instruct"
+output_dir: "./output/llama-3.2-1b-extraction"
+dataset_path: "./examples/data/extraction_dataset.jsonl"
+
+# LoRA — keep rank low for small models
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+
+# Training
+num_epochs: 3
+batch_size: 4
+learning_rate: 2e-4
+max_seq_length: 2048
+gradient_accumulation_steps: 4
+
+# Export to GGUF for CPU inference
+quantize: "q4_0"
+use_unsloth: true

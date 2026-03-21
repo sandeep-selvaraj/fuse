@@ -1,0 +1,27 @@
+{
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Full name of the person"
+    },
+    "age": {
+      "type": "integer",
+      "description": "Age in years"
+    },
+    "job_title": {
+      "type": "string",
+      "description": "Job title or role"
+    },
+    "company": {
+      "type": "string",
+      "description": "Company or organization"
+    },
+    "skills": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of skills or expertise"
+    }
+  },
+  "required": ["name"]
+}

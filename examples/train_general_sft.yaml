@@ -1,0 +1,21 @@
+# General-purpose SFT on a custom instruction dataset
+# Usage: fuse train --config examples/train_general_sft.yaml
+
+model_name: "unsloth/Phi-4-mini-instruct"
+output_dir: "./output/phi-4-mini-sft"
+dataset_path: "./examples/data/instruction_dataset.jsonl"
+
+# Higher rank for more expressive fine-tuning
+lora_r: 32
+lora_alpha: 64
+lora_dropout: 0.1
+
+# Training — more epochs for small datasets
+num_epochs: 5
+batch_size: 2
+learning_rate: 1e-4
+max_seq_length: 4096
+gradient_accumulation_steps: 8
+
+quantize: "q5_1"
+use_unsloth: true
