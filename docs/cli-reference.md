@@ -50,6 +50,41 @@ uvx fusellm extract "Sarah Chen is a 34-year-old architect" \
   --fields "name:str,age:int,job_title:str"
 ```
 
+### With evidence spans
+
+Add `--spans` to see where each extracted value was found in the source text:
+
+```bash
+fuse extract "Sarah Chen is a 34-year-old architect at Stripe" \
+  --model bartowski/Llama-3.2-1B-Instruct-GGUF \
+  --fields "name:str,age:int,job_title:str,company:str" \
+  --spans
+```
+
+Output includes evidence quotes, explicit/implicit classification, and character offsets.
+
+### HTML visualization
+
+Generate an interactive HTML file with color-coded highlighted spans:
+
+```bash
+fuse extract "Sarah Chen is a 34-year-old architect at Stripe" \
+  --model bartowski/Llama-3.2-1B-Instruct-GGUF \
+  --fields "name:str,age:int,job_title:str,company:str" \
+  --html result.html
+```
+
+The HTML output shows:
+
+- Each field highlighted with a **distinct color** in the source text
+- **Solid outlines** for explicit extractions (value is verbatim in text)
+- **Dashed outlines** for implicit extractions (value is inferred from context)
+- Hover tooltips with field name and value
+- A legend with field details, types, and character offsets
+
+!!! tip
+    `--html` implies `--spans` — you don't need to pass both.
+
 ### Options
 
 | Option | Description |
@@ -60,6 +95,8 @@ uvx fusellm extract "Sarah Chen is a 34-year-old architect" \
 | `--schema PATH` | JSON schema file path |
 | `--format TEXT` | Prompt format: `llama`, `chatml`, or `generic` (default: `llama`) |
 | `--max-tokens INT` | Maximum tokens to generate (default: `512`) |
+| `--spans` | Include evidence spans with source text localization |
+| `--html PATH` | Write highlighted HTML visualization to file |
 
 ---
 
