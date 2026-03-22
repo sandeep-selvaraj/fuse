@@ -13,6 +13,7 @@ from fuse.extraction.spans import (
     locate_all_spans,
     locate_span,
 )
+from fuse.extraction.visualize import render_html
 
 # --- Span localization tests ---
 
@@ -261,3 +262,84 @@ class TestExtractorWithSpans:
 
         assert isinstance(result, SpannedResult)
         assert result.to_dict() == {"name": "John Smith", "age": 30}
+
+
+# --- HTML Visualization tests ---
+
+
+class TestRenderHtml:
+    def _make_result(self) -> tuple[str, SpannedResult]:
+        source = "Sarah Chen is a 34-year-old architect at Stripe"
+        return source, SpannedResult(
+            fields=[
+                EvidencedField("name", "Sarah Chen", "Sarah Chen", True, Span(0, 10)),
+                EvidencedField("age", 34, "34", True, Span(17, 19)),
+                EvidencedField(
+                    "job_title",
+                    "architect",
+                    "architect",
+                    True,
+                    Span(29, 38),
+                ),
+                EvidencedField(
+                    "sentiment",
+                    "neutral",
+                    "is a 34-year-old architect",
+                    False,
+                    Span(11, 38),
+                ),
+            ],
+        )
+
+    def test_returns_valid_html(self) -> None:
+        source, result = self._make_result()
+        html = render_html(source, result)
+        assert html.startswith("<!DOCTYPE html>")
+        assert "</html>" in html
+
+    def test_contains_source_text(self) -> None:
+        source, result = self._make_result()
+        html = render_html(source, result)
+        assert "Sarah Chen" in html
+        assert "Stripe" in html
+
+    def test_explicit_fields_have_solid_border(self) -> None:
+        source, result = self._make_result()
+        html = render_html(source, result)
+        assert "border:2px solid" in html
+
+    def test_implicit_fields_have_dashed_border(self) -> None:
+        source, result = self._make_result()
+        html = render_html(source, result)
+        assert "border:2px dashed" in html
+
+    def test_legend_contains_field_names(self) -> None:
+        source, result = self._make_result()
+        html = render_html(source, result)
+        assert "name" in html
+        assert "age" in html
+        assert "job_title" in html
+        assert "sentiment" in html
+
+    def test_legend_shows_type_labels(self) -> None:
+        source, result = self._make_result()
+        html = render_html(source, result)
+        assert "explicit" in html
+        assert "implicit" in html
+
+    def test_mark_tags_present(self) -> None:
+        source, result = self._make_result()
+        html = render_html(source, result)
+        assert "<mark" in html
+        assert "</mark>" in html
+
+    def test_no_spans_produces_plain_text(self) -> None:
+        source = "hello world"
+        result = SpannedResult(
+            fields=[
+                EvidencedField("x", "val", "", False, None),
+            ]
+        )
+        html = render_html(source, result)
+        assert "hello world" in html
+        assert "<mark" not in html
