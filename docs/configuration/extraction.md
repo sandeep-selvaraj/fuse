@@ -119,6 +119,36 @@ prompt_format: chatml  # for Qwen or Phi models
 
 ---
 
+## Evidence spans and visualization
+
+Any extraction mode supports evidence spans via the CLI flags `--spans` and `--html`:
+
+```bash
+# Table output with evidence, type, and character offsets
+fuse extract "..." --config extract_person.yaml --spans
+
+# HTML file with color-coded highlighted spans
+fuse extract "..." --config extract_person.yaml --html result.html
+```
+
+In Python, use the `_with_spans` extraction methods:
+
+```python
+result = extractor.extract_with_spans(text, schema)
+result = extractor.extract_from_fields_with_spans(text, fields)
+```
+
+Each field in the result includes:
+
+- `value` — the extracted value
+- `evidence` — verbatim quote from the source text
+- `is_explicit` — `true` if the value appears word-for-word in the source
+- `span` — character-offset `(start, end)` in the source text
+
+See [Concepts — Extraction with spans](../concepts.md#extraction-with-spans) for details on explicit vs. implicit extractions.
+
+---
+
 ## Example configs
 
 ### Person extraction

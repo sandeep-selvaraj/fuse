@@ -125,6 +125,61 @@ The `Extractor` class supports three extraction modes:
 
 All modes use constrained generation under the hood — the model is forced to output valid JSON matching the schema.
 
+### Extraction with spans
+
+Every extraction mode has a `_with_spans` variant that returns source text localization:
+
+| Mode | Method | Output |
+|---|---|---|
+| Pydantic model | `extract_with_spans()` | `SpannedResult` |
+| Fields dict | `extract_from_fields_with_spans()` | `SpannedResult` |
+
+Each field in a `SpannedResult` includes:
+
+- **value** — the extracted value
+- **evidence** — a verbatim quote from the source text supporting the value
+- **is_explicit** — whether the value appears word-for-word in the source
+- **span** — character-offset `(start, end)` in the source text
+
+Fuse distinguishes between two types of extraction:
+
+| Type | Example | Span points to |
+|---|---|---|
+| **Explicit** | Name: "Sarah Chen" (verbatim in text) | The value itself |
+| **Implicit** | Sentiment: "negative" (inferred) | The evidence passage |
+
+For explicit extractions, the value is a direct substring of the source — localization uses exact substring matching. For implicit extractions (e.g., sentiment, category), the model quotes the evidence passage verbatim, and the span points to that passage instead.
+
+```python
+result = extractor.extract_with_spans(text, PersonSchema)
+
+for field in result.fields:
+    print(f"{field.name}: {field.value}")
+    print(f"  evidence: {field.evidence!r}")
+    print(f"  type: {'explicit' if field.is_explicit else 'implicit'}")
+    if field.span:
+        print(f"  source[{field.span.start}:{field.span.end}]")
+```
+
+### HTML visualization
+
+Generate an HTML page with color-coded highlighted spans:
+
+```python
+from fuse.extraction.visualize import render_html
+
+html = render_html(source_text, result)
+Path("result.html").write_text(html)
+```
+
+Or via CLI:
+
+```bash
+fuse extract "..." --model repo/name --fields "..." --html result.html
+```
+
+The visualization uses solid outlines for explicit extractions and dashed outlines for implicit ones, with a legend showing all fields, their values, and character offsets.
+
 ---
 
 ## Prompt formats

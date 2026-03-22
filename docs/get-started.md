@@ -111,6 +111,28 @@ fuse extract "Sarah Chen is a 34-year-old architect at Stripe" \
   --config extract_person.yaml
 ```
 
+### Extract with evidence spans
+
+See where each value was found in the source text:
+
+```bash
+fuse extract "Sarah Chen is a 34-year-old architect at Stripe" \
+  --model bartowski/Llama-3.2-1B-Instruct-GGUF \
+  --fields "name:str,age:int,job_title:str,company:str" \
+  --spans
+```
+
+### Generate an HTML visualization
+
+```bash
+fuse extract "Sarah Chen is a 34-year-old architect at Stripe" \
+  --model bartowski/Llama-3.2-1B-Instruct-GGUF \
+  --fields "name:str,age:int,job_title:str,company:str" \
+  --html result.html
+```
+
+Opens a color-coded view with highlighted spans, solid/dashed outlines for explicit/implicit extractions, and a field legend.
+
 See [CLI Reference](cli-reference.md) for all commands and options.
 
 ---
