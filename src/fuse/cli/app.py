@@ -55,6 +55,10 @@ def extract(
         bool,
         typer.Option("--spans", help="Include evidence spans with source text localization"),
     ] = False,
+    html_out: Annotated[
+        Path | None,
+        typer.Option("--html", help="Write highlighted HTML visualization to file"),
+    ] = None,
 ) -> None:
     """Extract structured data from text using a GGUF model.
 
@@ -62,16 +66,32 @@ def extract(
     for ad-hoc extraction. The model can be a local GGUF path or a HuggingFace
     repo name (auto-downloads the best GGUF quant).
     """
+    use_spans = spans or html_out is not None
     if config:
-        _extract_from_config(text, config, spans=spans)
+        _extract_from_config(text, config, spans=use_spans, html_out=html_out)
     elif model:
-        _extract_from_flags(text, model, schema, fields, prompt_format, max_tokens, spans=spans)
+        _extract_from_flags(
+            text,
+            model,
+            schema,
+            fields,
+            prompt_format,
+            max_tokens,
+            spans=use_spans,
+            html_out=html_out,
+        )
     else:
         console.print("[red]Provide --config or --model[/red]")
         raise typer.Exit(code=1)
 
 
-def _extract_from_config(text: str, config_path: Path, *, spans: bool = False) -> None:
+def _extract_from_config(
+    text: str,
+    config_path: Path,
+    *,
+    spans: bool = False,
+    html_out: Path | None = None,
+) -> None:
     """Run extraction driven by a YAML/JSON config file."""
     from fuse.config import ExtractConfig
     from fuse.extraction.extractor import Extractor
@@ -92,7 +112,7 @@ def _extract_from_config(text: str, config_path: Path, *, spans: bool = False) -
         model_cls = SchemaBuilder.from_json_schema(json_schema)
         if spans:
             spanned = extractor.extract_with_spans(text, model_cls, max_tokens=cfg.max_tokens)
-            _print_spanned_result(spanned)
+            _output_spanned(text, spanned, html_out)
         else:
             result = extractor.extract(text, model_cls, max_tokens=cfg.max_tokens)
             _print_result(result.model_dump())
@@ -102,7 +122,7 @@ def _extract_from_config(text: str, config_path: Path, *, spans: bool = False) -
             spanned = extractor.extract_from_fields_with_spans(
                 text, parsed, max_tokens=cfg.max_tokens
             )
-            _print_spanned_result(spanned)
+            _output_spanned(text, spanned, html_out)
         else:
             result_dict = extractor.extract_from_fields(text, parsed, max_tokens=cfg.max_tokens)
             _print_result(result_dict)
@@ -125,6 +145,7 @@ def _extract_from_flags(
     max_tokens: int,
     *,
     spans: bool = False,
+    html_out: Path | None = None,
 ) -> None:
     """Run extraction from CLI flags."""
     from fuse.extraction.extractor import Extractor
@@ -141,7 +162,7 @@ def _extract_from_flags(
         model_cls = SchemaBuilder.from_json_schema(json_schema)
         if spans:
             spanned = extractor.extract_with_spans(text, model_cls, max_tokens=max_tokens)
-            _print_spanned_result(spanned)
+            _output_spanned(text, spanned, html_out)
         else:
             result = extractor.extract(text, model_cls, max_tokens=max_tokens)
             _print_result(result.model_dump())
@@ -151,7 +172,7 @@ def _extract_from_flags(
             spanned = extractor.extract_from_fields_with_spans(
                 text, parsed_fields, max_tokens=max_tokens
             )
-            _print_spanned_result(spanned)
+            _output_spanned(text, spanned, html_out)
         else:
             result_dict = extractor.extract_from_fields(text, parsed_fields, max_tokens=max_tokens)
             _print_result(result_dict)
@@ -242,6 +263,17 @@ def _print_result(data: dict) -> None:
     for key, value in data.items():
         table.add_row(key, str(value))
     console.print(table)
+
+
+def _output_spanned(text: str, result: Any, html_out: Path | None) -> None:
+    """Print spanned result table and optionally write HTML."""
+    _print_spanned_result(result)
+    if html_out:
+        from fuse.extraction.visualize import render_html
+
+        html_content = render_html(text, result)
+        html_out.write_text(html_content)
+        console.print(f"[bold green]HTML written to {html_out}[/bold green]")
 
 
 def _print_spanned_result(result: Any) -> None:
