@@ -51,6 +51,10 @@ def extract(
         typer.Option("--format", help="Prompt format: llama, chatml, generic"),
     ] = "llama",
     max_tokens: Annotated[int, typer.Option("--max-tokens", help="Max generation tokens")] = 512,
+    spans: Annotated[
+        bool,
+        typer.Option("--spans", help="Include evidence spans with source text localization"),
+    ] = False,
 ) -> None:
     """Extract structured data from text using a GGUF model.
 
@@ -59,15 +63,15 @@ def extract(
     repo name (auto-downloads the best GGUF quant).
     """
     if config:
-        _extract_from_config(text, config)
+        _extract_from_config(text, config, spans=spans)
     elif model:
-        _extract_from_flags(text, model, schema, fields, prompt_format, max_tokens)
+        _extract_from_flags(text, model, schema, fields, prompt_format, max_tokens, spans=spans)
     else:
         console.print("[red]Provide --config or --model[/red]")
         raise typer.Exit(code=1)
 
 
-def _extract_from_config(text: str, config_path: Path) -> None:
+def _extract_from_config(text: str, config_path: Path, *, spans: bool = False) -> None:
     """Run extraction driven by a YAML/JSON config file."""
     from fuse.config import ExtractConfig
     from fuse.extraction.extractor import Extractor
@@ -86,12 +90,22 @@ def _extract_from_config(text: str, config_path: Path) -> None:
         with open(cfg.schema_file) as f:
             json_schema = json.load(f)
         model_cls = SchemaBuilder.from_json_schema(json_schema)
-        result = extractor.extract(text, model_cls, max_tokens=cfg.max_tokens)
-        _print_result(result.model_dump())
+        if spans:
+            spanned = extractor.extract_with_spans(text, model_cls, max_tokens=cfg.max_tokens)
+            _print_spanned_result(spanned)
+        else:
+            result = extractor.extract(text, model_cls, max_tokens=cfg.max_tokens)
+            _print_result(result.model_dump())
     elif cfg.fields:
         parsed = _parse_config_fields(cfg.fields)
-        result_dict = extractor.extract_from_fields(text, parsed, max_tokens=cfg.max_tokens)
-        _print_result(result_dict)
+        if spans:
+            spanned = extractor.extract_from_fields_with_spans(
+                text, parsed, max_tokens=cfg.max_tokens
+            )
+            _print_spanned_result(spanned)
+        else:
+            result_dict = extractor.extract_from_fields(text, parsed, max_tokens=cfg.max_tokens)
+            _print_result(result_dict)
     elif cfg.description:
         result_dict = extractor.extract_from_description(
             text, cfg.description, max_tokens=cfg.max_tokens
@@ -109,6 +123,8 @@ def _extract_from_flags(
     fields: str | None,
     prompt_format: str,
     max_tokens: int,
+    *,
+    spans: bool = False,
 ) -> None:
     """Run extraction from CLI flags."""
     from fuse.extraction.extractor import Extractor
@@ -123,12 +139,22 @@ def _extract_from_flags(
         with open(schema) as f:
             json_schema = json.load(f)
         model_cls = SchemaBuilder.from_json_schema(json_schema)
-        result = extractor.extract(text, model_cls, max_tokens=max_tokens)
-        _print_result(result.model_dump())
+        if spans:
+            spanned = extractor.extract_with_spans(text, model_cls, max_tokens=max_tokens)
+            _print_spanned_result(spanned)
+        else:
+            result = extractor.extract(text, model_cls, max_tokens=max_tokens)
+            _print_result(result.model_dump())
     elif fields:
         parsed_fields = _parse_field_spec(fields)
-        result_dict = extractor.extract_from_fields(text, parsed_fields, max_tokens=max_tokens)
-        _print_result(result_dict)
+        if spans:
+            spanned = extractor.extract_from_fields_with_spans(
+                text, parsed_fields, max_tokens=max_tokens
+            )
+            _print_spanned_result(spanned)
+        else:
+            result_dict = extractor.extract_from_fields(text, parsed_fields, max_tokens=max_tokens)
+            _print_result(result_dict)
     else:
         console.print("[red]Provide --schema, --fields, or use --config[/red]")
         raise typer.Exit(code=1)
@@ -215,4 +241,27 @@ def _print_result(data: dict) -> None:
     table.add_column("Value", style="green")
     for key, value in data.items():
         table.add_row(key, str(value))
+    console.print(table)
+
+
+def _print_spanned_result(result: Any) -> None:
+    """Pretty-print a SpannedResult with evidence and spans."""
+    from fuse.extraction.spans import SpannedResult
+
+    assert isinstance(result, SpannedResult)
+    table = Table(title="Extraction Result (with spans)")
+    table.add_column("Field", style="cyan")
+    table.add_column("Value", style="green")
+    table.add_column("Evidence", style="yellow")
+    table.add_column("Type", style="magenta")
+    table.add_column("Span", style="dim")
+    for field in result.fields:
+        span_str = f"{field.span.start}:{field.span.end}" if field.span else "-"
+        table.add_row(
+            field.name,
+            str(field.value),
+            field.evidence or "-",
+            "explicit" if field.is_explicit else "implicit",
+            span_str,
+        )
     console.print(table)
