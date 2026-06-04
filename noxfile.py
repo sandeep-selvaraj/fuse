@@ -41,7 +41,7 @@ def integration(session: nox.Session) -> None:
         uv run nox -s integration -- -k inference     # inference only
         uv run nox -s integration -- -k training      # training only
     """
-    session.install(".[dev,training]")
+    session.install(".[dev,training,reporting]")
     session.run(
         "pytest", "tests/integration/", "-v",
         "--tb=short",

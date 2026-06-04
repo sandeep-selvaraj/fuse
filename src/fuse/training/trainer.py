@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING, Any
 
 from rich.console import Console
@@ -126,6 +127,13 @@ class Trainer:
         console.print("[bold green]Starting training...[/bold green]")
 
         output_dir = str(self.config.output_dir)
+        report_to = self.config.report_to
+        if report_to and report_to != ["none"]:
+            console.print(f"Reporting metrics to [magenta]{', '.join(report_to)}[/magenta]")
+        # transformers reads the TensorBoard log dir from this env var
+        # (TrainingArguments.logging_dir is deprecated as of transformers 5.x).
+        if self.config.logging_dir is not None:
+            os.environ["TENSORBOARD_LOGGING_DIR"] = str(self.config.logging_dir)
         training_args = SFTConfig(
             output_dir=output_dir,
             num_train_epochs=self.config.num_epochs,
@@ -133,10 +141,11 @@ class Trainer:
             gradient_accumulation_steps=self.config.gradient_accumulation_steps,
             learning_rate=self.config.learning_rate,
             max_length=self.config.max_seq_length,
-            logging_steps=10,
+            logging_steps=self.config.logging_steps,
+            run_name=self.config.run_name,
             save_strategy="epoch",
             fp16=True,
-            report_to="none",
+            report_to=report_to,
         )
 
         trainer = SFTTrainer(

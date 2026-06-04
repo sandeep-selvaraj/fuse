@@ -39,6 +39,10 @@ training = [
     "datasets>=2.0",
     "trl>=0.8",
 ]
+reporting = [
+    "tensorboard>=2.14",
+    "mlflow>=2.9",
+]
 dev = [
     "pytest>=8.0",
     "ruff>=0.4",

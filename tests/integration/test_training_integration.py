@@ -25,9 +25,22 @@ def _has_training_deps() -> bool:
     return True
 
 
+def _has_tensorboard() -> bool:
+    try:
+        import tensorboard  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
 requires_training = pytest.mark.skipif(
     not _has_training_deps(),
     reason="Training dependencies not installed (install with: uv sync --extra training)",
+)
+
+requires_tensorboard = pytest.mark.skipif(
+    not _has_tensorboard(),
+    reason="TensorBoard not installed (install with: uv sync --extra reporting)",
 )
 
 
@@ -138,6 +151,59 @@ class TestTrainingPipeline:
         ]
         found = [f for f in tokenizer_files if (output_dir / f).exists()]
         assert len(found) >= 1, f"No tokenizer files found in {output_dir}"
+
+    def test_train_writes_epoch_checkpoint(self, sample_training_data, tmp_path):
+        """Train for 2 epochs and verify a per-epoch checkpoint is written."""
+        from fuse.config import TrainConfig
+        from fuse.training.trainer import Trainer
+
+        config = TrainConfig(
+            model_name=HF_MODEL,
+            output_dir=tmp_path / "output",
+            dataset_path=sample_training_data,
+            use_unsloth=False,
+            num_epochs=2,
+            batch_size=2,
+            gradient_accumulation_steps=1,
+            max_seq_length=128,
+            lora_r=4,
+            lora_alpha=8,
+        )
+        trainer = Trainer(config)
+        output_dir = trainer.train()
+
+        # save_strategy="epoch" should produce at least one checkpoint-N dir.
+        checkpoints = list(output_dir.glob("checkpoint-*"))
+        assert checkpoints, f"No checkpoint directories written in {output_dir}"
+
+    @requires_tensorboard
+    def test_train_with_tensorboard_reporting(self, sample_training_data, tmp_path):
+        """Verify TensorBoard reporting writes event files to logging_dir."""
+        from fuse.config import TrainConfig
+        from fuse.training.trainer import Trainer
+
+        logging_dir = tmp_path / "tb_logs"
+        config = TrainConfig(
+            model_name=HF_MODEL,
+            output_dir=tmp_path / "output",
+            dataset_path=sample_training_data,
+            use_unsloth=False,
+            num_epochs=1,
+            batch_size=2,
+            gradient_accumulation_steps=1,
+            max_seq_length=128,
+            lora_r=4,
+            lora_alpha=8,
+            report_to=["tensorboard"],
+            logging_dir=logging_dir,
+            logging_steps=1,
+            run_name="fuse-integration-test",
+        )
+        trainer = Trainer(config)
+        trainer.train()
+
+        event_files = list(logging_dir.rglob("events.out.tfevents.*"))
+        assert event_files, f"No TensorBoard event files written under {logging_dir}"
 
     def test_config_validation_requires_dataset(self):
         """Trainer should fail if no dataset is provided."""

@@ -67,6 +67,23 @@ class TrainConfig(BaseModel):
     max_seq_length: int = Field(default=2048, description="Maximum sequence length")
     gradient_accumulation_steps: int = Field(default=4, description="Gradient accumulation steps")
 
+    # Experiment reporting
+    report_to: list[str] = Field(
+        default_factory=lambda: ["none"],
+        description='Reporting integrations: "tensorboard", "mlflow", "wandb", or "none"',
+    )
+    logging_steps: int = Field(default=10, description="Log metrics every N steps")
+    logging_dir: Path | None = Field(
+        default=None,
+        description=(
+            "Directory for TensorBoard logs (sets TENSORBOARD_LOGGING_DIR; "
+            "defaults to output_dir/runs)"
+        ),
+    )
+    run_name: str | None = Field(
+        default=None, description="Run name for the reporting backend (e.g. MLflow/W&B run)"
+    )
+
     # Export
     quantize: QuantMethod | None = Field(
         default=QuantMethod.Q4_0, description="GGUF quantization method"
