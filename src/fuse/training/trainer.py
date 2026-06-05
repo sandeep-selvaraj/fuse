@@ -206,9 +206,56 @@ class Trainer:
         output_dir = self.config.output_dir
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        console.print(f"Saving model to [cyan]{output_dir}[/cyan]")
+        # Always save the LoRA adapter + tokenizer (small; lets you resume or re-merge).
+        console.print(f"Saving adapter to [cyan]{output_dir}[/cyan]")
         self._model.save_pretrained(str(output_dir))
         self._tokenizer.save_pretrained(str(output_dir))
 
+        if self.config.export_after_train:
+            self._export_for_inference(output_dir)
+
         console.print("[bold green]Training complete![/bold green]")
         return output_dir
+
+    def _export_for_inference(self, output_dir: Path) -> None:
+        """Export inference-ready artifacts after training.
+
+        Produces:
+        - ``<output_dir>/merged`` — a standalone (merged) HF model for GPU /
+          transformers / vLLM inference.
+        - ``<output_dir>/gguf`` — a quantized GGUF for CPU / llama.cpp, loadable
+          by ``LlamaCppBackend``. Requires Unsloth; skipped with a note otherwise.
+        """
+        merged_dir = output_dir / "merged"
+        console.print(f"Saving merged model for GPU/HF inference to [cyan]{merged_dir}[/cyan]")
+        if hasattr(self._model, "save_pretrained_merged"):
+            # Unsloth: merge LoRA into the base weights in one call.
+            self._model.save_pretrained_merged(
+                str(merged_dir), self._tokenizer, save_method="merged_16bit"
+            )
+        else:
+            # HuggingFace/PEFT path: merge then save a full model.
+            merged = self._model.merge_and_unload()
+            merged.save_pretrained(str(merged_dir))
+            self._tokenizer.save_pretrained(str(merged_dir))
+
+        if self.config.quantize is None:
+            return
+
+        quant = self.config.quantize.value
+        gguf_dir = output_dir / "gguf"
+        if hasattr(self._model, "save_pretrained_gguf"):
+            console.print(f"Exporting GGUF ([cyan]{quant}[/cyan]) for CPU/llama.cpp...")
+            self._model.save_pretrained_gguf(
+                str(gguf_dir), self._tokenizer, quantization_method=quant
+            )
+            console.print(
+                f"GGUF written to [cyan]{gguf_dir}[/cyan] — load with "
+                f"[green]LlamaCppBackend(model_path=...)[/green]"
+            )
+        else:
+            console.print(
+                "[yellow]GGUF export needs Unsloth; skipped. The merged HF model in "
+                f"{merged_dir} can be used for GPU inference or converted to GGUF "
+                "with llama.cpp's convert_hf_to_gguf.py.[/yellow]"
+            )

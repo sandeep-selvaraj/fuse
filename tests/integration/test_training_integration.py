@@ -150,6 +150,7 @@ class TestTrainingPipeline:
             output_dir=tmp_path / "output",
             dataset_path=sample_training_data,
             use_unsloth=False,
+            export_after_train=False,
             num_epochs=1,
             batch_size=2,
             gradient_accumulation_steps=1,
@@ -177,6 +178,7 @@ class TestTrainingPipeline:
             output_dir=tmp_path / "output",
             dataset_path=sample_training_data,
             use_unsloth=False,
+            export_after_train=False,
             num_epochs=1,
             batch_size=2,
             gradient_accumulation_steps=1,
@@ -206,6 +208,7 @@ class TestTrainingPipeline:
             dataset_path=sample_training_data,
             eval_dataset_path=sample_training_data,
             use_unsloth=False,
+            export_after_train=False,
             num_epochs=1,
             batch_size=2,
             gradient_accumulation_steps=1,
@@ -231,6 +234,7 @@ class TestTrainingPipeline:
             output_dir=tmp_path / "output",
             dataset_path=sample_training_data,
             use_unsloth=False,
+            export_after_train=False,
             num_epochs=2,
             batch_size=2,
             gradient_accumulation_steps=1,
@@ -257,6 +261,7 @@ class TestTrainingPipeline:
             output_dir=tmp_path / "output",
             dataset_path=sample_training_data,
             use_unsloth=False,
+            export_after_train=False,
             num_epochs=1,
             batch_size=2,
             gradient_accumulation_steps=1,
@@ -273,6 +278,35 @@ class TestTrainingPipeline:
 
         event_files = list(logging_dir.rglob("events.out.tfevents.*"))
         assert event_files, f"No TensorBoard event files written under {logging_dir}"
+
+    def test_export_produces_loadable_merged_model(self, sample_training_data, tmp_path):
+        """Auto-export merges the adapter into a standalone HF model (GPU-ready)."""
+        from transformers import AutoModelForCausalLM
+
+        from fuse.config import TrainConfig
+        from fuse.training.trainer import Trainer
+
+        config = TrainConfig(
+            model_name=HF_MODEL,
+            output_dir=tmp_path / "output",
+            dataset_path=sample_training_data,
+            use_unsloth=False,
+            export_after_train=True,  # HF path: merge_and_unload -> merged/
+            num_epochs=1,
+            batch_size=2,
+            gradient_accumulation_steps=1,
+            max_seq_length=128,
+            lora_r=4,
+            lora_alpha=8,
+        )
+        output_dir = Trainer(config).train()
+
+        merged_dir = output_dir / "merged"
+        assert (merged_dir / "config.json").exists()
+        assert any(f.suffix == ".safetensors" for f in merged_dir.iterdir())
+        # It must be a standalone model (no PEFT adapter needed) -> loads directly.
+        model = AutoModelForCausalLM.from_pretrained(str(merged_dir))
+        assert model is not None
 
     def test_config_validation_requires_dataset(self):
         """Trainer should fail if no dataset is provided."""
@@ -304,6 +338,7 @@ class TestTrainingConfig:
             output_dir=tmp_path / "output",
             dataset_path=sample_training_data,
             use_unsloth=False,
+            export_after_train=False,
             num_epochs=1,
             batch_size=2,
             gradient_accumulation_steps=1,

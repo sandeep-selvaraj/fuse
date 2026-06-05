@@ -189,22 +189,55 @@ trainer.train()
 
 ---
 
-## Exporting to GGUF
+## Using a trained model
 
-After training, convert the model to GGUF for CPU inference:
+Training fine-tunes a **LoRA adapter**, which on its own can't be loaded for inference.
+To make the result usable, training auto-exports inference-ready artifacts (controlled by
+`export_after_train`, on by default). After `fuse train`, `output_dir` contains:
 
-```bash
-fuse quantize --model ./output --output model.gguf --method q4_0
+```
+output/
+├── adapter_config.json + adapter_model.safetensors   # the LoRA adapter (resume/re-merge)
+├── merged/                                            # standalone HF model — GPU / transformers / vLLM
+└── gguf/  model.gguf                                  # quantized GGUF — CPU / llama.cpp (Unsloth only)
 ```
 
-Available quantization methods: `q4_0`, `q4_1`, `q5_0`, `q5_1`, `q8_0`.
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `export_after_train` | `bool` | `true` | After training, save the merged HF model and (with Unsloth) a GGUF |
+| `quantize` | `str \| None` | `"q4_0"` | GGUF quantization method (`None` skips GGUF) |
 
-Then use the exported model:
+### Load for CPU inference (GGUF)
 
 ```python
-backend = fuse.LlamaCppBackend(model_path="./model.gguf")
+backend = fuse.LlamaCppBackend(model_path="./output/gguf/model.gguf")
 extractor = fuse.Extractor(backend)
 ```
+
+`LlamaCppBackend` also offloads to GPU via `InferenceConfig(n_gpu_layers=N)`.
+
+### Use for GPU inference (merged HF model)
+
+The `merged/` directory is a standalone model — load it with transformers, vLLM, or TGI:
+
+```python
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+model = AutoModelForCausalLM.from_pretrained("./output/merged", device_map="cuda")
+tokenizer = AutoTokenizer.from_pretrained("./output/merged")
+```
+
+!!! note "GGUF export requires Unsloth"
+    The one-shot GGUF export uses Unsloth (`save_pretrained_gguf`). When training falls
+    back to plain HuggingFace, GGUF is skipped — but the `merged/` model is still produced,
+    and you can convert it with llama.cpp's `convert_hf_to_gguf.py` if you need GGUF.
+
+### Changing the GGUF quantization
+
+The GGUF quant is controlled by `quantize` (default `q4_0`; available: `q4_0`, `q4_1`,
+`q5_0`, `q5_1`, `q8_0`). To produce a different quant, set `quantize` in the config and run
+`fuse train` again, or convert the already-saved `merged/` model with llama.cpp's
+`convert_hf_to_gguf.py` followed by `llama-quantize`.
 
 ---
 

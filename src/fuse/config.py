@@ -113,7 +113,12 @@ class TrainConfig(BaseModel):
 
     # Export
     quantize: QuantMethod | None = Field(
-        default=QuantMethod.Q4_0, description="GGUF quantization method"
+        default=QuantMethod.Q4_0, description="GGUF quantization method (None to skip GGUF export)"
+    )
+    export_after_train: bool = Field(
+        default=True,
+        description="After training, save a merged HF model (for GPU/transformers inference) "
+        "and a GGUF (for CPU/llama.cpp). GGUF export requires Unsloth.",
     )
     use_unsloth: bool = Field(default=True, description="Use Unsloth for faster training")
 
