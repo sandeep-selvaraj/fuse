@@ -1,3 +1,5 @@
+import json
+import math
 from typing import Any
 
 import pytest
@@ -9,7 +11,9 @@ from fuse.extraction.spans import (
     EvidencedField,
     Span,
     SpannedResult,
+    TokenScores,
     build_spanned_result,
+    char_range_confidence,
     locate_all_spans,
     locate_span,
 )
@@ -262,6 +266,73 @@ class TestExtractorWithSpans:
 
         assert isinstance(result, SpannedResult)
         assert result.to_dict() == {"name": "John Smith", "age": 30}
+
+
+# --- Confidence scoring tests ---
+
+
+def _scores_from(token_prob_pairs: list[tuple[str, float]]) -> TokenScores:
+    """Build TokenScores from (token_text, probability) pairs."""
+    tokens = [t for t, _ in token_prob_pairs]
+    logprobs = [math.log(p) for _, p in token_prob_pairs]
+    return TokenScores(text="".join(tokens), tokens=tokens, logprobs=logprobs)
+
+
+class TestCharRangeConfidence:
+    def test_geometric_mean_of_token_probs(self) -> None:
+        # text = "abcd", two tokens "ab" (0.5) and "cd" (0.8)
+        scores = _scores_from([("ab", 0.5), ("cd", 0.8)])
+        # range covering both tokens -> exp(mean(log 0.5, log 0.8))
+        conf = char_range_confidence(scores, 0, 4)
+        assert conf == pytest.approx(math.sqrt(0.5 * 0.8))
+
+    def test_selects_only_overlapping_tokens(self) -> None:
+        scores = _scores_from([("ab", 0.5), ("cd", 0.8)])
+        # range [2,4) overlaps only the second token "cd"
+        conf = char_range_confidence(scores, 2, 4)
+        assert conf == pytest.approx(0.8)
+
+    def test_partial_overlap_includes_token(self) -> None:
+        scores = _scores_from([("abc", 0.4), ("de", 0.9)])
+        # range [2,4) overlaps end of "abc" and start of "de"
+        conf = char_range_confidence(scores, 2, 4)
+        assert conf == pytest.approx(math.sqrt(0.4 * 0.9))
+
+    def test_no_overlap_returns_none(self) -> None:
+        scores = _scores_from([("ab", 0.5)])
+        assert char_range_confidence(scores, 10, 12) is None
+
+    def test_none_logprob_skipped(self) -> None:
+        scores = TokenScores(text="abcd", tokens=["ab", "cd"], logprobs=[None, math.log(0.7)])
+        conf = char_range_confidence(scores, 0, 4)
+        assert conf == pytest.approx(0.7)
+
+
+class TestBuildSpannedResultWithConfidence:
+    def test_confidence_attached_per_field(self) -> None:
+        raw = {
+            "name": {"value": "Jo", "evidence": "Jo", "is_explicit": True},
+        }
+        # Generated JSON, tokenized char-by-char with known probabilities.
+        text = json.dumps(raw)
+        tokens = list(text)
+        # The located value literal is the quoted '"Jo"' — give those chars low
+        # probs (the value's evidence/key chars stay at 1.0).
+        literal = '"Jo"'
+        vi = text.index(literal)
+        logprobs = [
+            math.log(0.3) if vi <= i < vi + len(literal) else math.log(1.0)
+            for i in range(len(tokens))
+        ]
+        scores = TokenScores(text=text, tokens=tokens, logprobs=logprobs)
+
+        result = build_spanned_result("Jo is here", raw, scores=scores)
+        assert result["name"].confidence == pytest.approx(0.3)
+
+    def test_confidence_none_without_scores(self) -> None:
+        raw = {"name": {"value": "Jo", "evidence": "Jo", "is_explicit": True}}
+        result = build_spanned_result("Jo is here", raw)
+        assert result["name"].confidence is None
 
 
 # --- HTML Visualization tests ---

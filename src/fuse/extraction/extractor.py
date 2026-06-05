@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from fuse.extraction.prompts import format_evidenced_extraction_prompt, format_extraction_prompt
 from fuse.extraction.schema import SchemaBuilder
@@ -109,6 +109,7 @@ class Extractor:
         schema: type[BaseModel],
         *,
         max_tokens: int = 1024,
+        with_confidence: bool = False,
     ) -> SpannedResult:
         """Extract structured data with source text localization.
 
@@ -119,6 +120,9 @@ class Extractor:
             text: Input text to extract from.
             schema: A Pydantic model class defining the expected output.
             max_tokens: Maximum tokens for generation.
+            with_confidence: If True and the backend exposes token logprobs,
+                annotate each field with a confidence score (0-1). Falls back
+                to confidence=None when the backend does not support it.
 
         Returns:
             A SpannedResult with per-field values, evidence, and spans.
@@ -127,6 +131,14 @@ class Extractor:
         evidenced_schema = _to_evidenced_json_schema(json_schema)
         schema_desc = _schema_to_description(json_schema)
         prompt = format_evidenced_extraction_prompt(text, schema_desc, self._prompt_format)
+
+        if with_confidence and hasattr(self._backend, "generate_structured_with_logprobs"):
+            # Optional capability — not part of the InferenceBackend protocol.
+            backend = cast("Any", self._backend)
+            raw, scores = backend.generate_structured_with_logprobs(
+                prompt, json_schema=evidenced_schema, max_tokens=max_tokens
+            )
+            return build_spanned_result(text, raw, scores=scores)
 
         raw = self._backend.generate_structured(
             prompt, json_schema=evidenced_schema, max_tokens=max_tokens
@@ -139,10 +151,13 @@ class Extractor:
         fields: dict[str, type | tuple[type, Any]],
         *,
         max_tokens: int = 1024,
+        with_confidence: bool = False,
     ) -> SpannedResult:
         """Extract with spans using a dict of field names to types."""
         model = SchemaBuilder.from_fields(fields)
-        return self.extract_with_spans(text, model, max_tokens=max_tokens)
+        return self.extract_with_spans(
+            text, model, max_tokens=max_tokens, with_confidence=with_confidence
+        )
 
 
 def _to_evidenced_json_schema(json_schema: dict[str, Any]) -> dict[str, Any]:

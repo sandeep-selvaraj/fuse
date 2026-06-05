@@ -188,3 +188,47 @@ class TestExtractorEndToEnd:
         assert isinstance(result, dict)
         assert "name" in result
         assert "age" in result
+
+
+class TestConfidenceScoring:
+    """Test per-field confidence via token logprobs with a real model."""
+
+    def test_extract_with_confidence(self, gguf_model_path):
+        from pydantic import BaseModel
+
+        from fuse.config import InferenceConfig
+        from fuse.extraction.extractor import Extractor
+        from fuse.inference.llama_cpp import LlamaCppBackend
+
+        # logits_all=True is required for per-token logprobs.
+        config = InferenceConfig(model_path=gguf_model_path, logits_all=True)
+        backend = LlamaCppBackend.from_config(config)
+
+        class Person(BaseModel):
+            name: str
+            age: int
+
+        extractor = Extractor(backend, prompt_format="chatml")
+        result = extractor.extract_with_spans(
+            "John Smith is a 30-year-old engineer at Google.",
+            Person,
+            max_tokens=256,
+            with_confidence=True,
+        )
+
+        for field in result.fields:
+            assert field.confidence is not None, f"{field.name} has no confidence"
+            assert 0.0 <= field.confidence <= 1.0
+
+    def test_confidence_requires_logits_all(self, gguf_model_path):
+        from fuse.inference.llama_cpp import LlamaCppBackend
+
+        # Default backend (logits_all=False) should refuse the logprobs path.
+        backend = LlamaCppBackend(model_path=gguf_model_path)
+        schema = {
+            "type": "object",
+            "properties": {"name": {"type": "string"}},
+            "required": ["name"],
+        }
+        with pytest.raises(ValueError, match="logits_all=True"):
+            backend.generate_structured_with_logprobs("Extract:", schema, max_tokens=16)

@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from fuse.config import InferenceConfig
+
+if TYPE_CHECKING:
+    from fuse.extraction.spans import TokenScores
 
 
 class LlamaCppBackend:
@@ -50,6 +53,7 @@ class LlamaCppBackend:
             n_threads=self._config.n_threads,
             n_gpu_layers=self._config.n_gpu_layers,
             seed=self._config.seed,
+            logits_all=self._config.logits_all,
             verbose=False,
             **kwargs,
         )
@@ -110,3 +114,65 @@ class LlamaCppBackend:
                 )
                 raise ValueError(msg) from None
         return cast("dict[str, Any]", raw)
+
+    def generate_structured_with_logprobs(
+        self,
+        prompt: str,
+        json_schema: dict[str, Any],
+        *,
+        max_tokens: int = 512,
+        **kwargs: Any,
+    ) -> tuple[dict[str, Any], TokenScores]:
+        """Like generate_structured, but also return per-token logprobs.
+
+        Reuses outlines' constrained-decoding logits processor but calls
+        llama.cpp directly (with logprobs=1) so the full completion — text
+        and token logprobs — is returned in a single pass. The TokenScores
+        let the extraction layer compute a per-field confidence.
+        """
+        self._ensure_loaded()
+
+        if not self._config.logits_all:
+            msg = (
+                "Confidence scoring requires per-token logprobs, which need the "
+                "model to be loaded with logits_all=True. Set logits_all=True in "
+                "InferenceConfig (uses more memory)."
+            )
+            raise ValueError(msg)
+
+        import outlines
+        from llama_cpp import LogitsProcessorList
+
+        from fuse.extraction.spans import TokenScores
+
+        outlines_model = outlines.from_llamacpp(self._model, chat_mode=False)
+        generator = outlines.Generator(outlines_model, outlines.json_schema(json_schema))
+        # SteerableGenerator (the llama.cpp case) exposes the built logits processor.
+        processor = cast("Any", generator).logits_processor
+
+        self._model.n_tokens = 0
+        completion = self._model(
+            prompt,
+            logits_processor=LogitsProcessorList([processor]) if processor else None,
+            logprobs=1,
+            max_tokens=max_tokens,
+            temperature=kwargs.get("temperature", self._config.temperature),
+        )
+        self._model.reset()
+
+        choice = completion["choices"][0]
+        text = choice["text"]
+        lp = choice.get("logprobs") or {}
+        tokens = lp.get("tokens") or []
+        token_logprobs = lp.get("token_logprobs") or []
+
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            msg = (
+                f"Model returned invalid JSON (likely truncated). "
+                f"Try increasing max_tokens. Raw output: {text!r}"
+            )
+            raise ValueError(msg) from None
+
+        return data, TokenScores(text=text, tokens=list(tokens), logprobs=list(token_logprobs))
