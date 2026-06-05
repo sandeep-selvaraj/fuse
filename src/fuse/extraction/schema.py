@@ -147,7 +147,7 @@ class SchemaBuilder:
             field_type = _JSON_TYPE_MAP.get(field["type"], str)
             if field["type"] == "array":
                 item_type = _JSON_TYPE_MAP.get(field.get("items_type", "string"), str)
-                field_type = list[item_type]  # type: ignore[valid-type]
+                field_type = list[item_type]  # ty: ignore[invalid-type-form]
             fields[field["name"]] = field_type
 
         return SchemaBuilder.from_fields(fields, model_name=model_name)
@@ -165,7 +165,7 @@ def _resolve_json_schema_type(prop: dict[str, Any]) -> type:
     if prop_type == "array":
         items = prop.get("items", {})
         item_type = _JSON_TYPE_MAP.get(items.get("type", "string"), str)
-        return list[item_type]  # type: ignore[valid-type]
+        return list[item_type]  # ty: ignore[invalid-type-form]
 
     if prop_type == "object":
         # Nested objects become dict[str, Any]
