@@ -2,7 +2,7 @@
 
 Train small LLMs and deploy them for fast structured extraction on CPU.
 
-Fuse lets you pull any GGUF model from HuggingFace, run zero-shot structured extraction with dynamic schemas, fine-tune with LoRA via Unsloth/HuggingFace, and export to GGUF for fast CPU inference. No predefined Pydantic models required.
+Fuse lets you pull any GGUF model from HuggingFace, run zero-shot structured extraction with dynamic schemas, fine-tune with LoRA via Unsloth/HuggingFace, and export to GGUF for fast CPU inference. Every extraction comes with per-field confidence scores and optional evidence-span localization. No predefined Pydantic models required.
 
 ## Install
 
@@ -12,10 +12,11 @@ Fuse lets you pull any GGUF model from HuggingFace, run zero-shot structured ext
 uv add fusellm
 ```
 
-With training support:
+With training support (add `reporting` for TensorBoard/MLflow metric logging):
 
 ```bash
 uv add "fusellm[training]"
+uv add "fusellm[training,reporting]"
 ```
 
 ### Run without installing
@@ -54,7 +55,9 @@ result = extractor.extract_from_fields(
     "Sarah Chen is a 34-year-old software architect at Stripe.",
     {"name": str, "age": int, "job_title": str, "company": str}
 )
-# {'name': 'Sarah Chen', 'age': 34, 'job_title': 'software architect', 'company': 'Stripe'}
+# result is dict-like (an ExtractionResult):
+result.to_dict()    # {'name': 'Sarah Chen', 'age': 34, 'job_title': 'software architect', 'company': 'Stripe'}
+result.confidence   # per-field confidence, e.g. {'name': 0.94, 'age': 0.99, ...}
 ```
 
 ### Use a local GGUF model
@@ -67,7 +70,7 @@ result = extractor.extract_from_fields(
     "John is 30 years old and knows Python and Rust",
     {"name": str, "age": int, "skills": list[str]}
 )
-# {'name': 'John', 'age': 30, 'skills': ['Python', 'Rust']}
+result.to_dict()   # {'name': 'John', 'age': 30, 'skills': ['Python', 'Rust']}
 ```
 
 ### Config-driven extraction
@@ -172,6 +175,8 @@ Any GGUF model on HuggingFace works. Some good small models for CPU extraction:
 |---|---|---|
 | Llama 3.2 1B Instruct | ~1GB Q4 | `bartowski/Llama-3.2-1B-Instruct-GGUF` |
 | Llama 3.2 3B Instruct | ~2GB Q4 | `bartowski/Llama-3.2-3B-Instruct-GGUF` |
+| Gemma 4 E2B Instruct | ~3.5GB Q4 | `bartowski/google_gemma-4-E2B-it-GGUF` |
+| Gemma 4 E4B Instruct | ~5.4GB Q4 | `bartowski/google_gemma-4-E4B-it-GGUF` |
 | Qwen 2.5 1.5B Instruct | ~1GB Q4 | `bartowski/Qwen2.5-1.5B-Instruct-GGUF` |
 | Phi-4 Mini Instruct | ~2.5GB Q4 | `bartowski/Phi-4-mini-instruct-GGUF` |
 

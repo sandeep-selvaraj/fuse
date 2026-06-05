@@ -72,6 +72,11 @@ flowchart LR
     <h3>Fine-tune with LoRA</h3>
     <p>Train on your domain data with Unsloth or HuggingFace Transformers, then export to GGUF for deployment.</p>
   </div>
+  <div class="feature-card">
+    <span class="feature-icon">&#127919;</span>
+    <h3>Confidence &amp; evidence spans</h3>
+    <p>Every field comes with a confidence score and optional source-text localization, viewable as a color-coded HTML report.</p>
+  </div>
 </div>
 
 ---
@@ -88,7 +93,8 @@ result = extractor.extract_from_fields(
     "Sarah Chen is a 34-year-old software architect at Stripe.",
     {"name": str, "age": int, "job_title": str, "company": str}
 )
-# {'name': 'Sarah Chen', 'age': 34, 'job_title': 'software architect', 'company': 'Stripe'}
+result.to_dict()    # {'name': 'Sarah Chen', 'age': 34, 'job_title': 'software architect', 'company': 'Stripe'}
+result.confidence   # {'name': 0.94, 'age': 0.99, 'job_title': 0.88, 'company': 0.91}
 ```
 
 ---

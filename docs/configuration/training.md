@@ -20,29 +20,27 @@ Fuse tries [Unsloth](https://github.com/unslothai/unsloth) first for faster trai
 
 ### YAML format
 
+`TrainConfig` is a **flat** mapping — all fields sit at the top level (there are no
+nested `lora:` or `training:` sections):
+
 ```yaml
 model_name: "unsloth/Llama-3.2-1B-Instruct"
 output_dir: "./output/llama-extraction"
 dataset_path: "./data/extraction_dataset.jsonl"
 
-lora:
-  r: 16
-  alpha: 32
-  dropout: 0.05
-  target_modules:
-    - q_proj
-    - k_proj
-    - v_proj
-    - o_proj
+# LoRA
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
 
-training:
-  epochs: 3
-  batch_size: 4
-  gradient_accumulation_steps: 4
-  learning_rate: 2.0e-4
-  warmup_steps: 10
-  max_seq_length: 2048
-  fp16: true
+# Training
+num_epochs: 3
+batch_size: 4
+gradient_accumulation_steps: 4
+learning_rate: 2.0e-4
+max_seq_length: 2048
+
+use_unsloth: true
 ```
 
 ### Parameters
@@ -51,30 +49,61 @@ training:
 |---|---|---|---|
 | `model_name` | `str` | required | HuggingFace model name (e.g., `unsloth/Llama-3.2-1B-Instruct`) |
 | `output_dir` | `str` | `"./output"` | Directory for saving checkpoints and final model |
-| `dataset_path` | `str \| None` | `None` | Path to local JSONL dataset |
-| `dataset_name` | `str \| None` | `None` | HuggingFace dataset name |
-| `dataset_split` | `str` | `"train"` | Dataset split to use |
+| `dataset_path` | `str \| None` | `None` | Path to local JSONL/CSV dataset |
+| `dataset_name` | `str \| None` | `None` | HuggingFace dataset name (used if `dataset_path` is unset) |
+| `use_unsloth` | `bool` | `true` | Try Unsloth first; fall back to HuggingFace if unavailable |
+| `quantize` | `str \| None` | `"q4_0"` | GGUF quantization method for export |
 
 ### LoRA parameters
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `lora.r` | `int` | `16` | LoRA rank |
-| `lora.alpha` | `int` | `32` | LoRA alpha (scaling factor) |
-| `lora.dropout` | `float` | `0.05` | LoRA dropout |
-| `lora.target_modules` | `list[str]` | `["q_proj", "k_proj", "v_proj", "o_proj"]` | Modules to apply LoRA to |
+| `lora_r` | `int` | `16` | LoRA rank |
+| `lora_alpha` | `int` | `32` | LoRA alpha (scaling factor) |
+| `lora_dropout` | `float` | `0.05` | LoRA dropout |
 
 ### Training parameters
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `training.epochs` | `int` | `3` | Number of training epochs |
-| `training.batch_size` | `int` | `4` | Per-device batch size |
-| `training.gradient_accumulation_steps` | `int` | `4` | Gradient accumulation steps |
-| `training.learning_rate` | `float` | `2e-4` | Learning rate |
-| `training.warmup_steps` | `int` | `10` | Warmup steps |
-| `training.max_seq_length` | `int` | `2048` | Maximum sequence length |
-| `training.fp16` | `bool` | `true` | Use FP16 mixed precision |
+| `num_epochs` | `int` | `3` | Number of training epochs |
+| `batch_size` | `int` | `4` | Per-device batch size |
+| `gradient_accumulation_steps` | `int` | `4` | Gradient accumulation steps |
+| `learning_rate` | `float` | `2e-4` | Learning rate |
+| `max_seq_length` | `int` | `2048` | Maximum sequence length |
+
+### Experiment reporting
+
+Training metrics can be logged to TensorBoard, MLflow, or Weights & Biases. The
+TensorBoard and MLflow integrations are installed via the optional `reporting` extra:
+
+```bash
+uv add "fusellm[training,reporting]"
+```
+
+```yaml
+report_to: ["tensorboard"]      # or ["mlflow"], ["wandb"], or several
+logging_steps: 10
+logging_dir: "./runs/llama-extraction"   # TensorBoard log dir
+run_name: "llama-extraction-v1"          # run name for MLflow / W&B
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `report_to` | `list[str]` | `["none"]` | Reporting integrations: `"tensorboard"`, `"mlflow"`, `"wandb"`, or `"none"` |
+| `logging_steps` | `int` | `10` | Log metrics every N steps |
+| `logging_dir` | `str \| None` | `None` | TensorBoard log dir (sets `TENSORBOARD_LOGGING_DIR`; defaults to `output_dir/runs`) |
+| `run_name` | `str \| None` | `None` | Run name for the reporting backend (MLflow / W&B) |
+
+After training with `report_to: ["tensorboard"]`:
+
+```bash
+tensorboard --logdir ./runs/llama-extraction
+```
+
+For MLflow, point at a tracking server with `export MLFLOW_TRACKING_URI=...` (otherwise
+runs are written to a local `./mlruns`). `wandb` is not bundled in the `reporting` extra —
+install it separately if you use `report_to: ["wandb"]`.
 
 ---
 
@@ -99,7 +128,6 @@ You can also load datasets from HuggingFace Hub:
 
 ```yaml
 dataset_name: "my-org/extraction-dataset"
-dataset_split: "train"
 ```
 
 ---
@@ -155,16 +183,17 @@ model_name: "unsloth/Llama-3.2-1B-Instruct"
 output_dir: "./output/llama-extraction"
 dataset_path: "./data/extraction_dataset.jsonl"
 
-lora:
-  r: 16
-  alpha: 32
-  dropout: 0.05
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
 
-training:
-  epochs: 3
-  batch_size: 4
-  learning_rate: 2.0e-4
-  max_seq_length: 2048
+num_epochs: 3
+batch_size: 4
+learning_rate: 2.0e-4
+max_seq_length: 2048
+
+report_to: ["tensorboard"]
+logging_dir: "./runs/llama-extraction"
 ```
 
 ### General SFT from HuggingFace dataset
@@ -173,17 +202,13 @@ training:
 model_name: "unsloth/Llama-3.2-3B-Instruct"
 output_dir: "./output/llama-sft"
 dataset_name: "tatsu-lab/alpaca"
-dataset_split: "train"
 
-lora:
-  r: 32
-  alpha: 64
+lora_r: 32
+lora_alpha: 64
 
-training:
-  epochs: 1
-  batch_size: 2
-  gradient_accumulation_steps: 8
-  learning_rate: 1.0e-4
-  max_seq_length: 4096
-  fp16: true
+num_epochs: 1
+batch_size: 2
+gradient_accumulation_steps: 8
+learning_rate: 1.0e-4
+max_seq_length: 4096
 ```

@@ -119,11 +119,26 @@ The `Extractor` class supports three extraction modes:
 
 | Mode | Method | Input | Output |
 |---|---|---|---|
-| Pydantic model | `extract()` | `type[BaseModel]` | `BaseModel` instance |
-| Fields dict | `extract_from_fields()` | `dict[str, type]` | `dict` |
-| Description | `extract_from_description()` | `str` | `dict` |
+| Pydantic model | `extract()` | `type[BaseModel]` | `ExtractionResult` |
+| Fields dict | `extract_from_fields()` | `dict[str, type]` | `ExtractionResult` |
+| Description | `extract_from_description()` | `str` | `ExtractionResult` |
 
 All modes use constrained generation under the hood — the model is forced to output valid JSON matching the schema.
+
+An `ExtractionResult` is dict-like — `result["name"]`, `"name" in result`, and `result.to_dict()` all work — and additionally exposes:
+
+- **`confidence`** — a `dict` mapping each field to a confidence score in `(0, 1]` (or `None` when unavailable). See [Confidence scoring](#confidence-scoring).
+- **`model`** — the validated Pydantic model instance.
+
+```python
+result = extractor.extract_from_fields(
+    "Sarah Chen is a 34-year-old architect at Stripe.",
+    {"name": str, "age": int, "company": str},
+)
+result["name"]          # "Sarah Chen"
+result.to_dict()        # {"name": "Sarah Chen", "age": 34, "company": "Stripe"}
+result.confidence       # {"name": 0.94, "age": 0.99, "company": 0.88}
+```
 
 ### Extraction with spans
 
@@ -140,6 +155,7 @@ Each field in a `SpannedResult` includes:
 - **evidence** — a verbatim quote from the source text supporting the value
 - **is_explicit** — whether the value appears word-for-word in the source
 - **span** — character-offset `(start, end)` in the source text
+- **confidence** — confidence score in `(0, 1]`, or `None` when unavailable (see [Confidence scoring](#confidence-scoring))
 
 Fuse distinguishes between two types of extraction:
 
@@ -157,13 +173,41 @@ for field in result.fields:
     print(f"{field.name}: {field.value}")
     print(f"  evidence: {field.evidence!r}")
     print(f"  type: {'explicit' if field.is_explicit else 'implicit'}")
+    print(f"  confidence: {field.confidence}")
     if field.span:
         print(f"  source[{field.span.start}:{field.span.end}]")
 ```
 
+### Confidence scoring
+
+Every extract method scores each field's confidence by default (`with_confidence=True`).
+The score is the **geometric mean of the token probabilities** of that field's value —
+`exp(mean(token_logprobs))` — so it is length-normalized and lies in `(0, 1]`.
+
+```python
+result = extractor.extract_from_fields(text, {"name": str, "age": int})
+result.confidence            # {"name": 0.94, "age": 0.99}
+
+spanned = extractor.extract_with_spans(text, PersonSchema)
+spanned["name"].confidence   # 0.94
+```
+
+Requirements and behavior:
+
+- Requires the backend to be loaded with `logits_all=True` (the [default](configuration/inference.md#parameters)). Without it, confidence is `None` and extraction still succeeds.
+- Pass `with_confidence=False` to any extract method to skip scoring.
+
+!!! warning "Interpreting confidence"
+    Because generation is grammar-constrained, probabilities are renormalized over the
+    allowed tokens, which inflates them — and LLM probabilities are not calibrated. Treat
+    confidence as a **relative** signal (which field is least certain), not an absolute
+    probability of correctness.
+
 ### HTML visualization
 
-Generate an HTML page with color-coded highlighted spans:
+Generate an HTML page with color-coded highlighted spans. Each field's confidence is shown
+as a color-coded badge in the legend (green ≥ 0.80, amber ≥ 0.50, red below) and in the
+hover tooltip:
 
 ```python
 from fuse.extraction.visualize import render_html

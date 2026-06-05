@@ -144,8 +144,31 @@ Each field in the result includes:
 - `evidence` — verbatim quote from the source text
 - `is_explicit` — `true` if the value appears word-for-word in the source
 - `span` — character-offset `(start, end)` in the source text
+- `confidence` — confidence score in `(0, 1]`, or `None` when unavailable
 
 See [Concepts — Extraction with spans](../concepts.md#extraction-with-spans) for details on explicit vs. implicit extractions.
+
+---
+
+## Confidence scoring
+
+Every extraction returns a per-field confidence score by default. For the non-span methods
+the scores live on `ExtractionResult.confidence`; for the span methods they live on each
+field's `confidence` attribute.
+
+```python
+result = extractor.extract_from_fields(text, {"name": str, "age": int})
+result.confidence            # {"name": 0.94, "age": 0.99}
+```
+
+The score is the geometric mean of the token probabilities of the field's value. It
+requires the backend to be loaded with `logits_all=True` (the
+[default](inference.md#parameters)); otherwise confidence is `None` and extraction still
+succeeds. Pass `with_confidence=False` to any extract method to skip scoring.
+
+In the CLI, the `--spans`/`--html` output and the default table include a confidence column
+automatically. See [Concepts — Confidence scoring](../concepts.md#confidence-scoring) for
+how the score is computed and how to interpret it.
 
 ---
 

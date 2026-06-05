@@ -33,6 +33,13 @@ backend = fuse.LlamaCppBackend.from_config(config)
 | `max_tokens` | `int` | `512` | Maximum tokens to generate |
 | `temperature` | `float` | `0.0` | Sampling temperature (0.0 = deterministic) |
 | `seed` | `int` | `42` | Random seed for reproducibility |
+| `logits_all` | `bool` | `True` | Compute logits for all tokens — required for per-field [confidence scoring](extraction.md#confidence-scoring). On by default; set `False` to save memory if you don't need confidence. |
+
+!!! note "Confidence scoring and memory"
+    Confidence scores require `logits_all=True` (the default). This keeps per-token
+    logprobs around, which costs extra memory. If you don't need confidence, set
+    `logits_all=False` to reduce memory usage — extraction still works, and
+    confidence values are simply reported as `None`.
 
 ### Priority order
 
@@ -64,6 +71,7 @@ model:
   n_gpu_layers: 0
   temperature: 0.0
   seed: 42
+  logits_all: true   # required for confidence scoring (default); set false to save memory
 ```
 
 This is the `model` section of an [extraction config](extraction.md).

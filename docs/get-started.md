@@ -51,8 +51,10 @@ result = extractor.extract_from_fields(
     "Sarah Chen is a 34-year-old software architect at Stripe.",
     {"name": str, "age": int, "job_title": str, "company": str}
 )
-print(result)
+print(result.to_dict())
 # {'name': 'Sarah Chen', 'age': 34, 'job_title': 'software architect', 'company': 'Stripe'}
+print(result.confidence)
+# {'name': 0.94, 'age': 0.99, 'job_title': 0.88, 'company': 0.91}
 ```
 
 ### 2. Use a local GGUF model
@@ -65,7 +67,7 @@ result = extractor.extract_from_fields(
     "John is 30 years old and knows Python and Rust",
     {"name": str, "age": int, "skills": list[str]}
 )
-# {'name': 'John', 'age': 30, 'skills': ['Python', 'Rust']}
+result.to_dict()   # {'name': 'John', 'age': 30, 'skills': ['Python', 'Rust']}
 ```
 
 ### 3. Extract from a JSON schema

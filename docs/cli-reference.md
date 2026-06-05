@@ -61,7 +61,7 @@ fuse extract "Sarah Chen is a 34-year-old architect at Stripe" \
   --spans
 ```
 
-Output includes evidence quotes, explicit/implicit classification, and character offsets.
+Output includes evidence quotes, explicit/implicit classification, character offsets, and a per-field confidence score. (The default table output — without `--spans` — also includes a confidence column.)
 
 ### HTML visualization
 
@@ -79,8 +79,8 @@ The HTML output shows:
 - Each field highlighted with a **distinct color** in the source text
 - **Solid outlines** for explicit extractions (value is verbatim in text)
 - **Dashed outlines** for implicit extractions (value is inferred from context)
-- Hover tooltips with field name and value
-- A legend with field details, types, and character offsets
+- Hover tooltips with field name, value, and confidence
+- A legend with field details, types, character offsets, and a color-coded confidence badge (green ≥ 0.80, amber ≥ 0.50, red below)
 
 !!! tip
     `--html` implies `--spans` — you don't need to pass both.
@@ -163,14 +163,12 @@ model_name: "unsloth/Llama-3.2-1B-Instruct"
 output_dir: "./output/llama-extraction"
 dataset_path: "./data/extraction_dataset.jsonl"
 
-lora:
-  r: 16
-  alpha: 32
-  dropout: 0.05
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
 
-training:
-  epochs: 3
-  batch_size: 4
-  learning_rate: 2.0e-4
-  max_seq_length: 2048
+num_epochs: 3
+batch_size: 4
+learning_rate: 2.0e-4
+max_seq_length: 2048
 ```
