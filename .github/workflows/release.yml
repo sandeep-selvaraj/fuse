@@ -70,19 +70,51 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     environment: pypi
+    permissions:
+      contents: write   # push the regenerated CHANGELOG.md
+      id-token: write   # PyPI OIDC trusted publishing
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # full history + tags for git-cliff
       - uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist/
+
       - name: Publish to PyPI (OIDC trusted publishing)
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/
+
+      # --- changelog, generated after the PyPI publish ---
+      - name: Generate release notes for this tag
+        id: cliff_notes
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --latest --strip header
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*
-          generate_release_notes: true
+          body: ${{ steps.cliff_notes.outputs.content }}
           make_latest: true
+
+      - name: Switch to the default branch
+        run: git checkout master
+
+      - name: Regenerate full CHANGELOG.md
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --output CHANGELOG.md
+
+      - name: Commit updated changelog to the default branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git diff --staged --quiet || git commit -m "chore(release): update changelog for ${GITHUB_REF_NAME} [skip ci]"
+          git push origin master
