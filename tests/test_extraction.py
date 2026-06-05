@@ -137,9 +137,11 @@ class TestExtractor:
 
         extractor = Extractor(_MockBackend())
         result = extractor.extract("John is 30", Person)
-        assert isinstance(result, Person)
-        assert result.name == "extracted"
-        assert result.age == 42
+        assert isinstance(result.model, Person)
+        assert result["name"] == "extracted"
+        assert result["age"] == 42
+        # Mock backend has no logprobs capability -> confidence is None.
+        assert result.confidence == {"name": None, "age": None}
 
     def test_extract_from_fields(self) -> None:
         extractor = Extractor(_MockBackend())
@@ -149,6 +151,7 @@ class TestExtractor:
         )
         assert result["name"] == "extracted"
         assert result["age"] == 42
+        assert result.to_dict() == {"name": "extracted", "age": 42}
 
     def test_schema_to_description(self) -> None:
         schema = {

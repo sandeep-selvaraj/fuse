@@ -31,9 +31,9 @@ class InferenceConfig(BaseModel):
     temperature: float = Field(default=0.0, description="Sampling temperature (0 = greedy)")
     seed: int = Field(default=42, description="Random seed for reproducibility")
     logits_all: bool = Field(
-        default=False,
-        description="Compute logits for all tokens (required for confidence scoring; "
-        "uses more memory, so off by default)",
+        default=True,
+        description="Compute logits for all tokens (required for confidence scoring). "
+        "On by default; set False to save memory if you don't need confidence.",
     )
 
 

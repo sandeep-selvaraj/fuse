@@ -115,7 +115,7 @@ def _extract_from_config(
             _output_spanned(text, spanned, html_out)
         else:
             result = extractor.extract(text, model_cls, max_tokens=cfg.max_tokens)
-            _print_result(result.model_dump())
+            _print_result(result.to_dict(), result.confidence)
     elif cfg.fields:
         parsed = _parse_config_fields(cfg.fields)
         if spans:
@@ -124,13 +124,13 @@ def _extract_from_config(
             )
             _output_spanned(text, spanned, html_out)
         else:
-            result_dict = extractor.extract_from_fields(text, parsed, max_tokens=cfg.max_tokens)
-            _print_result(result_dict)
+            result = extractor.extract_from_fields(text, parsed, max_tokens=cfg.max_tokens)
+            _print_result(result.to_dict(), result.confidence)
     elif cfg.description:
-        result_dict = extractor.extract_from_description(
+        result = extractor.extract_from_description(
             text, cfg.description, max_tokens=cfg.max_tokens
         )
-        _print_result(result_dict)
+        _print_result(result.to_dict(), result.confidence)
     else:
         console.print("[red]Config must specify schema_file, fields, or description[/red]")
         raise typer.Exit(code=1)
@@ -165,7 +165,7 @@ def _extract_from_flags(
             _output_spanned(text, spanned, html_out)
         else:
             result = extractor.extract(text, model_cls, max_tokens=max_tokens)
-            _print_result(result.model_dump())
+            _print_result(result.to_dict(), result.confidence)
     elif fields:
         parsed_fields = _parse_field_spec(fields)
         if spans:
@@ -174,8 +174,8 @@ def _extract_from_flags(
             )
             _output_spanned(text, spanned, html_out)
         else:
-            result_dict = extractor.extract_from_fields(text, parsed_fields, max_tokens=max_tokens)
-            _print_result(result_dict)
+            result = extractor.extract_from_fields(text, parsed_fields, max_tokens=max_tokens)
+            _print_result(result.to_dict(), result.confidence)
     else:
         console.print("[red]Provide --schema, --fields, or use --config[/red]")
         raise typer.Exit(code=1)
@@ -255,13 +255,20 @@ def _parse_config_fields(
     return {name: type_map.get(t, str) for name, t in fields.items()}
 
 
-def _print_result(data: dict) -> None:
+def _print_result(data: dict, confidence: dict | None = None) -> None:
     """Pretty-print extraction results as a table."""
     table = Table(title="Extraction Result")
     table.add_column("Field", style="cyan")
     table.add_column("Value", style="green")
+    if confidence:
+        table.add_column("Confidence", style="magenta", justify="right")
     for key, value in data.items():
-        table.add_row(key, str(value))
+        if confidence:
+            conf = confidence.get(key)
+            conf_str = f"{conf:.2f}" if conf is not None else "-"
+            table.add_row(key, str(value), conf_str)
+        else:
+            table.add_row(key, str(value))
     console.print(table)
 
 

@@ -404,6 +404,29 @@ class TestRenderHtml:
         assert "<mark" in html
         assert "</mark>" in html
 
+    def test_legend_shows_confidence(self) -> None:
+        source = "Sarah Chen is here"
+        result = SpannedResult(
+            fields=[
+                EvidencedField("name", "Sarah Chen", "Sarah Chen", True, Span(0, 10), 0.87),
+                EvidencedField("city", "here", "here", True, Span(14, 18), None),
+            ]
+        )
+        html = render_html(source, result)
+        assert "legend-confidence" in html
+        assert "0.87" in html  # formatted score
+        assert "—" in html  # None confidence renders as em dash
+
+    def test_confidence_in_tooltip(self) -> None:
+        source = "Sarah Chen is here"
+        result = SpannedResult(
+            fields=[
+                EvidencedField("name", "Sarah Chen", "Sarah Chen", True, Span(0, 10), 0.87),
+            ]
+        )
+        html = render_html(source, result)
+        assert "confidence 0.87" in html
+
     def test_no_spans_produces_plain_text(self) -> None:
         source = "hello world"
         result = SpannedResult(

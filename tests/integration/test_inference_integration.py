@@ -134,12 +134,13 @@ class TestExtractorEndToEnd:
             {"name": str, "age": int, "company": str},
             max_tokens=128,
         )
-        assert isinstance(result, dict)
         assert "name" in result
         assert "age" in result
         assert "company" in result
         assert isinstance(result["name"], str)
         assert isinstance(result["age"], int)
+        # Confidence is on by default (the fixture backend uses logits_all=True).
+        assert set(result.confidence) == {"name", "age", "company"}
 
     def test_extract_with_pydantic_model(self, backend):
         from pydantic import BaseModel
@@ -152,9 +153,9 @@ class TestExtractorEndToEnd:
 
         extractor = Extractor(backend)
         result = extractor.extract("John is 30 years old.", Person, max_tokens=64)
-        assert isinstance(result, Person)
-        assert isinstance(result.name, str)
-        assert isinstance(result.age, int)
+        assert isinstance(result.model, Person)
+        assert isinstance(result["name"], str)
+        assert isinstance(result["age"], int)
 
     def test_extract_from_json_schema(self, backend):
         from fuse.extraction.extractor import Extractor
@@ -172,8 +173,8 @@ class TestExtractorEndToEnd:
         )
         extractor = Extractor(backend)
         result = extractor.extract("Alice is 25.", schema, max_tokens=64)
-        assert result.name is not None  # type: ignore[attr-defined]
-        assert result.age is not None  # type: ignore[attr-defined]
+        assert result["name"] is not None
+        assert result["age"] is not None
 
     @pytest.mark.parametrize("prompt_format", ["llama", "chatml", "generic"])
     def test_extract_with_different_prompt_formats(self, backend, prompt_format):
@@ -185,7 +186,6 @@ class TestExtractorEndToEnd:
             {"name": str, "age": int},
             max_tokens=64,
         )
-        assert isinstance(result, dict)
         assert "name" in result
         assert "age" in result
 
@@ -221,10 +221,14 @@ class TestConfidenceScoring:
             assert 0.0 <= field.confidence <= 1.0
 
     def test_confidence_requires_logits_all(self, gguf_model_path):
+        from fuse.config import InferenceConfig
         from fuse.inference.llama_cpp import LlamaCppBackend
 
-        # Default backend (logits_all=False) should refuse the logprobs path.
-        backend = LlamaCppBackend(model_path=gguf_model_path)
+        # With logits_all explicitly off, the low-level logprobs path refuses,
+        # and the backend reports it cannot score.
+        config = InferenceConfig(model_path=gguf_model_path, logits_all=False)
+        backend = LlamaCppBackend.from_config(config)
+        assert backend.supports_logprobs is False
         schema = {
             "type": "object",
             "properties": {"name": {"type": "string"}},
@@ -232,3 +236,25 @@ class TestConfidenceScoring:
         }
         with pytest.raises(ValueError, match="logits_all=True"):
             backend.generate_structured_with_logprobs("Extract:", schema, max_tokens=16)
+
+    def test_extract_degrades_gracefully_without_logits(self, gguf_model_path):
+        from pydantic import BaseModel
+
+        from fuse.config import InferenceConfig
+        from fuse.extraction.extractor import Extractor
+        from fuse.inference.llama_cpp import LlamaCppBackend
+
+        # confidence defaults on, but logits_all is off -> confidence is None,
+        # extraction still succeeds (no error).
+        config = InferenceConfig(model_path=gguf_model_path, logits_all=False)
+        backend = LlamaCppBackend.from_config(config)
+
+        class Person(BaseModel):
+            name: str
+            age: int
+
+        result = Extractor(backend, prompt_format="chatml").extract(
+            "John is 30 years old.", Person, max_tokens=64
+        )
+        assert isinstance(result.model, Person)
+        assert result.confidence == {"name": None, "age": None}

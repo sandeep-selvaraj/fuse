@@ -12,6 +12,23 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from fuse.extraction.spans import SpannedResult
 
+
+def _format_confidence(confidence: float | None) -> str:
+    """Format a confidence score for display, or an em dash when unavailable."""
+    return f"{confidence:.2f}" if confidence is not None else "—"
+
+
+def _confidence_color(confidence: float | None) -> str:
+    """Pick a badge color: green (high), amber (medium), red (low), grey (none)."""
+    if confidence is None:
+        return "#484f58"
+    if confidence >= 0.8:
+        return "#51cf66"
+    if confidence >= 0.5:
+        return "#fcc419"
+    return "#ff6b6b"
+
+
 # 10 visually distinct hues, easily extended
 _PALETTE = [
     "#4f86f7",  # blue
@@ -43,13 +60,15 @@ def render_html(source: str, result: SpannedResult) -> str:
         color_map[field.name] = _PALETTE[i % len(_PALETTE)]
 
     # Build sorted, non-overlapping insertion points
-    # Each entry: (position, is_open, field)
-    markers: list[tuple[int, bool, str, str, bool]] = []
+    # Each entry: (position, is_open, name, value, is_explicit, confidence)
+    markers: list[tuple[int, bool, str, str, bool, float | None]] = []
     for field in result.fields:
         if field.span is None:
             continue
-        markers.append((field.span.start, True, field.name, str(field.value), field.is_explicit))
-        markers.append((field.span.end, False, field.name, str(field.value), field.is_explicit))
+        opener = (field.span.start, True, field.name, str(field.value), field.is_explicit)
+        closer = (field.span.end, False, field.name, str(field.value), field.is_explicit)
+        markers.append((*opener, field.confidence))
+        markers.append((*closer, field.confidence))
 
     # Sort: by position, closes before opens at same position
     markers.sort(key=lambda m: (m[0], m[1]))
@@ -57,13 +76,13 @@ def render_html(source: str, result: SpannedResult) -> str:
     # Build the highlighted text
     parts: list[str] = []
     prev = 0
-    for pos, is_open, name, value, is_explicit in markers:
+    for pos, is_open, name, value, is_explicit, confidence in markers:
         if pos > prev:
             parts.append(html.escape(source[prev:pos]))
         if is_open:
             color = color_map[name]
             border = "solid" if is_explicit else "dashed"
-            tooltip = html.escape(f"{name}: {value}")
+            tooltip = html.escape(f"{name}: {value} (confidence {_format_confidence(confidence)})")
             parts.append(
                 f'<mark class="span-highlight" '
                 f'style="'
@@ -91,6 +110,8 @@ def render_html(source: str, result: SpannedResult) -> str:
         border = "solid" if field.is_explicit else "dashed"
         type_label = "explicit" if field.is_explicit else "implicit"
         span_str = f"{field.span.start}:{field.span.end}" if field.span else "—"
+        conf_color = _confidence_color(field.confidence)
+        conf_str = _format_confidence(field.confidence)
         legend_items.append(
             f'<div class="legend-item">'
             f'<span class="legend-swatch" style="'
@@ -100,6 +121,9 @@ def render_html(source: str, result: SpannedResult) -> str:
             f"<strong>{html.escape(field.name)}</strong>"
             f'<span class="legend-value">{html.escape(str(field.value))}</span>'
             f'<span class="legend-type {type_label}">{type_label}</span>'
+            f'<span class="legend-confidence" '
+            f'style="color:{conf_color};border:1px solid {conf_color}55;" '
+            f'title="confidence">{conf_str}</span>'
             f'<span class="legend-span">{span_str}</span>'
             f"</div>"
         )
@@ -202,6 +226,13 @@ _HTML_TEMPLATE = """\
   .legend-type.implicit {{
     background: #3a2a1a;
     color: #ff922b;
+  }}
+  .legend-confidence {{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 3px;
   }}
   .legend-span {{
     color: #484f58;

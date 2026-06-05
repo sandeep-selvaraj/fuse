@@ -70,6 +70,14 @@ class LlamaCppBackend:
             filename=self._config.gguf_filename,
         )
 
+    @property
+    def supports_logprobs(self) -> bool:
+        """Whether this backend can produce per-token logprobs for confidence.
+
+        Requires a loaded model and logits_all=True (set in InferenceConfig).
+        """
+        return self._model is not None and self._config.logits_all
+
     def _ensure_loaded(self) -> None:
         if self._model is None:
             msg = (

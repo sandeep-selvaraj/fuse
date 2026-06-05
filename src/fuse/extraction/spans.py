@@ -66,6 +66,36 @@ class SpannedResult:
 
 
 @dataclass(frozen=True, slots=True)
+class ExtractionResult:
+    """A flat extraction result that pairs each field value with a confidence.
+
+    Returned by the non-span extract APIs. Behaves like a read-only mapping of
+    field name to value (``result["name"]``, ``in``, ``to_dict()``), and also
+    exposes per-field ``confidence`` and the validated Pydantic ``model``.
+
+    Attributes:
+        values: Field name to extracted value.
+        confidence: Field name to confidence in (0, 1], or None when logprobs
+            were unavailable (e.g. the backend was loaded with logits_all=False).
+        model: The validated Pydantic model instance, when available.
+    """
+
+    values: dict[str, Any]
+    confidence: dict[str, float | None]
+    model: Any = None
+
+    def __getitem__(self, key: str) -> Any:
+        return self.values[key]
+
+    def __contains__(self, key: str) -> bool:
+        return key in self.values
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a plain dict of field name to value."""
+        return dict(self.values)
+
+
+@dataclass(frozen=True, slots=True)
 class TokenScores:
     """Per-token decoding info for the generated JSON, used to score confidence.
 
@@ -108,6 +138,40 @@ def char_range_confidence(scores: TokenScores, start: int, end: int) -> float | 
     if not selected:
         return None
     return math.exp(sum(selected) / len(selected))
+
+
+def _locate_value_range(json_text: str, field_name: str, value: Any) -> tuple[int, int] | None:
+    """Find the char range of a top-level field's value in flat JSON.
+
+    Anchors on the field key, then the JSON literal of the value after it.
+    Returns None if either anchor is missing.
+    """
+    ki = json_text.find(f'"{field_name}"')
+    if ki == -1:
+        return None
+    literal = json.dumps(value, ensure_ascii=False)
+    vi = json_text.find(literal, ki + len(field_name) + 2)
+    if vi == -1:
+        return None
+    return vi, vi + len(literal)
+
+
+def score_flat_fields(
+    values: dict[str, Any], scores: TokenScores | None
+) -> dict[str, float | None]:
+    """Confidence per top-level field, keyed like `values`.
+
+    Every field maps to None when `scores` is None (logprobs unavailable).
+    """
+    result: dict[str, float | None] = {}
+    for name, value in values.items():
+        confidence: float | None = None
+        if scores is not None:
+            value_range = _locate_value_range(scores.text, name, value)
+            if value_range is not None:
+                confidence = char_range_confidence(scores, *value_range)
+        result[name] = confidence
+    return result
 
 
 def _locate_evidenced_value_range(
