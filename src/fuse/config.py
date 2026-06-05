@@ -58,7 +58,29 @@ class TrainConfig(BaseModel):
         default=Path("./output"), description="Directory to save trained model"
     )
     dataset_name: str | None = Field(default=None, description="HuggingFace dataset name")
-    dataset_path: Path | None = Field(default=None, description="Local dataset path (JSONL/CSV)")
+    dataset_path: Path | None = Field(default=None, description="Local dataset path (JSONL/JSON)")
+
+    # Validation data (optional). Resolution order: explicit eval dataset >
+    # a predefined validation split in a Hub dataset > val_split_ratio auto-split.
+    eval_dataset_name: str | None = Field(
+        default=None, description="HuggingFace dataset name for validation"
+    )
+    eval_dataset_path: Path | None = Field(
+        default=None, description="Local validation dataset path (JSONL/JSON)"
+    )
+    train_split: str = Field(
+        default="train", description="Split name to load for training (Hub datasets)"
+    )
+    val_split: str = Field(
+        default="validation",
+        description="Validation split name to auto-detect/load (Hub datasets)",
+    )
+    val_split_ratio: float | None = Field(
+        default=None,
+        description="Fraction of training data to hold out for validation when no explicit "
+        "validation set is provided (e.g. 0.1). Off by default.",
+    )
+    seed: int = Field(default=42, description="Random seed (used for the validation auto-split)")
 
     # LoRA parameters
     lora_r: int = Field(default=16, description="LoRA rank")

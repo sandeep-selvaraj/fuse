@@ -72,6 +72,40 @@ use_unsloth: true
 | `learning_rate` | `float` | `2e-4` | Learning rate |
 | `max_seq_length` | `int` | `2048` | Maximum sequence length |
 
+### Validation data
+
+Provide a validation set to have the trainer report `eval_loss` and
+`eval_mean_token_accuracy` each epoch (visible in the [reporting](#experiment-reporting)
+backends). The validation set is resolved in this priority order:
+
+1. **Explicit validation set** — `eval_dataset_path` (local file) or `eval_dataset_name` (Hub).
+2. **Predefined split** — if a Hub `dataset_name` already contains a `validation` split, it is detected and used automatically.
+3. **Auto-split** — set `val_split_ratio` to carve a fraction off the training set.
+
+If none apply, training runs without evaluation (unchanged default behavior).
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `eval_dataset_path` | `str \| None` | `None` | Local validation dataset (JSONL/JSON) |
+| `eval_dataset_name` | `str \| None` | `None` | HuggingFace validation dataset name |
+| `train_split` | `str` | `"train"` | Split name to load for training (Hub datasets) |
+| `val_split` | `str` | `"validation"` | Validation split name to auto-detect/load (Hub datasets) |
+| `val_split_ratio` | `float \| None` | `None` | Fraction of training data held out for validation when no explicit set is given (e.g. `0.1`) |
+| `seed` | `int` | `42` | Random seed for the validation auto-split |
+
+```yaml
+# A) explicit validation file
+dataset_path: "./data/train.jsonl"
+eval_dataset_path: "./data/val.jsonl"
+
+# B) a Hub dataset that already has a validation split — detected automatically
+dataset_name: "my-org/extraction-dataset"
+
+# C) one dataset, auto-split 10% for validation
+dataset_path: "./data/all.jsonl"
+val_split_ratio: 0.1
+```
+
 ### Experiment reporting
 
 Training metrics can be logged to TensorBoard, MLflow, or Weights & Biases. The

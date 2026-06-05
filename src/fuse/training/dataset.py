@@ -40,6 +40,27 @@ def load_dataset_from_hub(name: str, split: str = "train") -> Any:
     return load_dataset(name, split=split)
 
 
+def load_file_as_dataset(path: Path) -> Any:
+    """Load a local JSONL/JSON file and format it into an SFT-ready HF Dataset."""
+    from datasets import Dataset
+
+    raw = load_dataset_from_file(path)
+    return Dataset.from_list(format_for_sft(raw))
+
+
+def try_load_hub_split(name: str, split: str) -> Any | None:
+    """Load a Hub dataset split if it exists, else return None.
+
+    Used to auto-detect a predefined validation split in a Hub dataset.
+    """
+    from datasets import load_dataset
+
+    try:
+        return load_dataset(name, split=split)
+    except (ValueError, KeyError):
+        return None
+
+
 def format_for_sft(
     examples: list[dict[str, Any]],
     instruction_key: str = "instruction",

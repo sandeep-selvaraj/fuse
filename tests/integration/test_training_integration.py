@@ -94,6 +94,49 @@ class TestDatasetLoading:
 
 
 @requires_training
+class TestValidationData:
+    """Test train/validation resolution in _load_data (no model needed)."""
+
+    def test_no_eval_when_single_dataset(self, sample_training_data):
+        from fuse.config import TrainConfig
+        from fuse.training.trainer import Trainer
+
+        config = TrainConfig(model_name=HF_MODEL, dataset_path=sample_training_data)
+        train, eval_dataset = Trainer(config)._load_data()
+        assert train is not None
+        assert eval_dataset is None
+
+    def test_explicit_eval_file(self, sample_training_data):
+        from fuse.config import TrainConfig
+        from fuse.training.trainer import Trainer
+
+        config = TrainConfig(
+            model_name=HF_MODEL,
+            dataset_path=sample_training_data,
+            eval_dataset_path=sample_training_data,
+        )
+        train, eval_dataset = Trainer(config)._load_data()
+        assert len(train) == 4
+        assert eval_dataset is not None
+        assert len(eval_dataset) == 4
+
+    def test_val_split_ratio_carves_from_train(self, sample_training_data):
+        from fuse.config import TrainConfig
+        from fuse.training.trainer import Trainer
+
+        config = TrainConfig(
+            model_name=HF_MODEL,
+            dataset_path=sample_training_data,
+            val_split_ratio=0.5,
+            seed=0,
+        )
+        train, eval_dataset = Trainer(config)._load_data()
+        # 4 examples, 50% held out -> 2 train / 2 eval
+        assert len(train) == 2
+        assert len(eval_dataset) == 2
+
+
+@requires_training
 class TestTrainingPipeline:
     """Test actual model fine-tuning with a tiny model and small dataset."""
 
@@ -151,6 +194,32 @@ class TestTrainingPipeline:
         ]
         found = [f for f in tokenizer_files if (output_dir / f).exists()]
         assert len(found) >= 1, f"No tokenizer files found in {output_dir}"
+
+    def test_train_reports_eval_metrics(self, sample_training_data, tmp_path):
+        """With a validation set, the trainer logs eval_loss each epoch."""
+        from fuse.config import TrainConfig
+        from fuse.training.trainer import Trainer
+
+        config = TrainConfig(
+            model_name=HF_MODEL,
+            output_dir=tmp_path / "output",
+            dataset_path=sample_training_data,
+            eval_dataset_path=sample_training_data,
+            use_unsloth=False,
+            num_epochs=1,
+            batch_size=2,
+            gradient_accumulation_steps=1,
+            max_seq_length=128,
+            lora_r=4,
+            lora_alpha=8,
+        )
+        trainer = Trainer(config)
+        trainer.train()
+
+        log_history = trainer._hf_trainer.state.log_history
+        assert any("eval_loss" in entry for entry in log_history), (
+            "eval_loss not found in trainer log history"
+        )
 
     def test_train_writes_epoch_checkpoint(self, sample_training_data, tmp_path):
         """Train for 2 epochs and verify a per-epoch checkpoint is written."""
